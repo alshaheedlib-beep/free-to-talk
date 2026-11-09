@@ -2,4 +2,5 @@
 <resources>
     <color name="navy">#14213D</color>
     <color name="paper">#F5F2EA</color>
+    <color name="accent">#FCA311</color>
 </resources>

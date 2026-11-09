@@ -3,6 +3,9 @@ package ps.alshaheed.hon;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -33,6 +36,35 @@ public class MainActivity extends Activity {
 
     private static final int REQ_LOCATION = 1;
     private static final int REQ_FILE = 2;
+    private static final int REQ_NOTIFY = 3;
+
+    static void ensureChannel(Context ctx) {
+        NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+        if (nm.getNotificationChannel("replies") == null) {
+            NotificationChannel ch = new NotificationChannel("replies", "الردود", NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("لما حدا يرد على رسالتك أو على نقاش شاركت فيه");
+            nm.createNotificationChannel(ch);
+        }
+    }
+
+    /** Get this phone's Firebase token (if the app was built with Firebase) and keep it for the page. */
+    private void setupPush() {
+        ensureChannel(this);
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            requestPermissions(new String[]{ Manifest.permission.POST_NOTIFICATIONS }, REQ_NOTIFY);
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken().addOnSuccessListener(t ->
+                getSharedPreferences("hon", MODE_PRIVATE).edit().putString("push_token", t).apply());
+        } catch (Exception noFirebase) { /* built without google-services.json */ }
+    }
+
+    /** "/?post=12" from a notification → full address on our site. */
+    private static String linkFrom(Intent intent) {
+        if (intent == null) return null;
+        String path = intent.getStringExtra("url");
+        if (path == null || !path.startsWith("/")) return null;
+        return BuildConfig.APP_URL + path.substring(1);
+    }
 
     private WebView web;
     private String pendingGeoOrigin;
@@ -123,8 +155,12 @@ public class MainActivity extends Activity {
             }
         });
 
+        setupPush();
+
         Uri link = getIntent() != null ? getIntent().getData() : null;
-        if (savedInstanceState != null) web.restoreState(savedInstanceState);
+        String fromNotification = linkFrom(getIntent());
+        if (fromNotification != null) web.loadUrl(fromNotification);
+        else if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else web.loadUrl(link != null && BuildConfig.APP_HOST.equals(link.getHost()) ? link.toString() : BuildConfig.APP_URL);
     }
 
@@ -148,6 +184,9 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String platform() { return "android"; }
+
+        @JavascriptInterface
+        public String pushToken() { return getSharedPreferences("hon", MODE_PRIVATE).getString("push_token", ""); }
     }
 
     private boolean hasLocationPermission() {
@@ -181,6 +220,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        String fromNotification = linkFrom(intent);
+        if (fromNotification != null) { web.loadUrl(fromNotification); return; }
         Uri link = intent.getData();
         if (link != null && BuildConfig.APP_HOST.equals(link.getHost())) web.loadUrl(link.toString());
     }

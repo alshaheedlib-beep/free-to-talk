@@ -422,10 +422,34 @@ async function start() {
   }
   renderFilters();
   locate();
+  registerPush();
+  openFromLink();
   // keep the board fresh while the app is open
   setInterval(() => { if (document.visibilityState === 'visible' && !openSheet) loadFeed({ silent: true }); }, 45000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadFeed({ silent: true }); });
 }
 start();
+
+/* ---------- notifications (phone app only) ---------- */
+// The app hands the page its Firebase token; the server uses it to tell you when someone replies.
+function registerPush(tries = 0) {
+  let token = '';
+  try { token = window.HonNative?.pushToken?.() || ''; } catch {}
+  if (!token) { if (window.HonNative && tries < 10) setTimeout(() => registerPush(tries + 1), 1500); return; }
+  if (store.get('ftt.push') === token) return;
+  api('/api/push/register', { method: 'POST', body: { token, platform: window.HonNative.platform?.() || 'android' } })
+    .then(() => store.set('ftt.push', token)).catch(() => {});
+}
+// Tapping a notification opens /?post=123 → show that thread.
+async function openFromLink() {
+  const id = Number(new URLSearchParams(location.search).get('post'));
+  if (!id) return;
+  history.replaceState(null, '', '/');
+  try {
+    const q = state.loc ? `?lat=${state.loc.lat}&lng=${state.loc.lng}` : '';
+    const d = await api(`/api/posts/${id}${q}`);
+    openThread(d.post);
+  } catch { toast('الرسالة اختفت'); }
+}
 
 if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => {});

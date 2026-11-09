@@ -7,6 +7,7 @@ import {
   now, int, num, sha256, randomToken, MIME, SEC_HEADERS, roundCoord, distanceM, boundingBox, validCoords, approxDistance,
   findBannedWord, cleanText, rateLimit, sendJson, parseCookies, cookie, readJson, clientIp,
 } from './lib/util.mjs';
+import { registerToken, notifyReply, pushEnabled } from './lib/push.mjs';
 
 const PORT = int(process.env.PORT, 3000);
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -125,6 +126,7 @@ async function api(req, res, url, me) {
     return sendJson(res, 200, {
       karma: me.karma, livePosts: posts, banned: !!me.banned,
       categories: CATEGORIES, testMode: S.testMode === '1', testSpots: S.testMode === '1' ? TEST_SPOTS : [],
+      push: pushEnabled(),
       ttlHours: int(S.postTtlHours, 24), ttlChoices: ttlChoices(S), maxPost: MAX_POST, maxReply: MAX_REPLY,
     });
   }
@@ -198,6 +200,12 @@ async function api(req, res, url, me) {
     const visible = post && post.status === 'live' && post.expires_at > now();
     if (!visible) return fail(res, 404, 'الرسالة اختفت');
 
+    if (method === 'GET' && !action) {
+      const row = get(`SELECT p.*, v.v AS my_vote, (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.status = 'live') AS reply_count
+        FROM posts p LEFT JOIN votes v ON v.post_id = p.id AND v.user_id = ? WHERE p.id = ?`, me.id, id);
+      return sendJson(res, 200, { post: postView(row, me, num(url.searchParams.get('lat')), num(url.searchParams.get('lng'))) });
+    }
+
     if (method === 'DELETE' && !action) {
       if (post.user_id !== me.id) return fail(res, 403, 'مش رسالتك');
       run(`UPDATE posts SET status = 'removed' WHERE id = ?`, id);
@@ -229,6 +237,7 @@ async function api(req, res, url, me) {
       if (findBannedWord(text, S.bannedWords)) return fail(res, 422, 'الرد فيه كلام ممنوع');
       if (!rateLimit(`reply:${me.id}`, int(S.repliesPerHour, 30), HOUR)) return fail(res, 429, 'ردود كثيرة، استنّى شوي');
       run('INSERT INTO replies(post_id, user_id, text, created_at) VALUES (?, ?, ?, ?)', id, me.id, text, now());
+      notifyReply(post, me.id, text);
       return sendJson(res, 201, { ok: true });
     }
 
@@ -265,6 +274,11 @@ async function api(req, res, url, me) {
     const r = get(`SELECT * FROM replies WHERE id = ? AND status = 'live'`, int(m[1]));
     if (!r) return fail(res, 404, 'الرد اختفى');
     return report(res, 'reply', r.id, me, body.reason, S);
+  }
+
+  if (method === 'POST' && p === '/api/push/register') {
+    const body = await readJson(req, 6000);
+    return sendJson(res, registerToken(me.id, String(body.token || ''), String(body.platform || '')) ? 200 : 400, { ok: true });
   }
 
   if (method === 'POST' && p === '/api/blocks/clear') {
