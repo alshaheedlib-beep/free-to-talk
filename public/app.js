@@ -73,10 +73,17 @@ function setLocation(loc) {
 function askGps() {
   return new Promise((resolve, reject) => {
     if (!window.isSecureContext || !navigator.geolocation) return reject(new Error('insecure'));
+    // never leave the user stuck on "بنحدد موقعك…" if the phone doesn't answer
+    const guard = setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 3 })), 20000);
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, name: 'حواليك', spot: null }),
-      (e) => reject(e), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+      (p) => { clearTimeout(guard); resolve({ lat: p.coords.latitude, lng: p.coords.longitude, name: 'حواليك', spot: null }); },
+      (e) => { clearTimeout(guard); reject(e); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
   });
+}
+// After your first message or reply, the phone app asks once whether you want reply notifications.
+function askNotificationsOnce() {
+  if (store.get('ftt.askedPush')) return;
+  try { window.HonNative?.requestNotifications?.(); store.set('ftt.askedPush', true); setTimeout(registerPush, 4000); } catch {}
 }
 async function locate({ manual = false } = {}) {
   const saved = store.get('ftt.spot');
@@ -96,6 +103,7 @@ function openPlaceSheet(err) {
   let note = 'التطبيق بيعرضلك اللي حواليك بس، فبنحتاج موقعك. ما بنحفظ موقعك الدقيق أبداً.';
   if (!secure) note = 'الموقع الحقيقي بيشتغل لما يكون الرابط آمن (https). لهلأ جرّب من الأماكن التجريبية.';
   else if (err && err.code === 1) note = 'رفضت مشاركة الموقع. فعّلها من إعدادات المتصفح وجرّب مرة ثانية.';
+  else if (err && err.code === 3) note = 'الموقع اتأخر. تأكد إن الـ GPS شغّال وجرّب مرة ثانية.';
   $('#placeNote').textContent = note;
   const spots = state.me.testSpots;
   $('#spotsBox').hidden = !spots.length;
@@ -347,6 +355,7 @@ $('#composeSend').addEventListener('click', async () => {
     $('#photoRemove').click();
     closeSheet();
     toast('انزرعت 📍 وبتختفي بعد ' + hoursText(state.composeTtl));
+    askNotificationsOnce();
     state.posts.unshift(r.post);
     if (state.sort !== 'new' || (state.cat && state.cat !== r.post.cat)) loadFeed({ silent: true }); else renderFeed({ widerCount: 0 });
     state.me.livePosts++;
@@ -395,7 +404,7 @@ $('#replyForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = $('#replyText'); const text = input.value.trim(); if (!text) return;
   input.disabled = true;
-  try { await api(`/api/posts/${state.thread.id}/replies`, { method: 'POST', body: { text } }); input.value = ''; await loadReplies(); }
+  try { await api(`/api/posts/${state.thread.id}/replies`, { method: 'POST', body: { text } }); input.value = ''; await loadReplies(); askNotificationsOnce(); }
   catch (er) { toast(er.message); }
   finally { input.disabled = false; input.focus(); }
 });

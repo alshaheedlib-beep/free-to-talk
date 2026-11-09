@@ -50,8 +50,6 @@ public class MainActivity extends Activity {
     /** Get this phone's Firebase token (if the app was built with Firebase) and keep it for the page. */
     private void setupPush() {
         ensureChannel(this);
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-            requestPermissions(new String[]{ Manifest.permission.POST_NOTIFICATIONS }, REQ_NOTIFY);
         try {
             com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken().addOnSuccessListener(t ->
                 getSharedPreferences("hon", MODE_PRIVATE).edit().putString("push_token", t).apply());
@@ -184,6 +182,15 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String platform() { return "android"; }
+
+        /** Asked by the page right after your first message/reply, not at launch (so it never clashes with the location prompt). */
+        @JavascriptInterface
+        public void requestNotifications() {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                    requestPermissions(new String[]{ Manifest.permission.POST_NOTIFICATIONS }, REQ_NOTIFY);
+            });
+        }
 
         @JavascriptInterface
         public String pushToken() { return getSharedPreferences("hon", MODE_PRIVATE).getString("push_token", ""); }

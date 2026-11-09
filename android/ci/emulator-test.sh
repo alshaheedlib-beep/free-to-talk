@@ -6,6 +6,7 @@ mkdir -p shots
 adb install -r hon.apk
 adb shell pm grant ps.alshaheed.hon android.permission.ACCESS_FINE_LOCATION || true
 adb shell pm grant ps.alshaheed.hon android.permission.ACCESS_COARSE_LOCATION || true
+adb shell pm grant ps.alshaheed.hon android.permission.POST_NOTIFICATIONS || true
 adb emu geo fix 35.0972 31.5336
 adb shell settings put secure location_mode 3 || true
 adb shell am start -W -n ps.alshaheed.hon/.MainActivity
