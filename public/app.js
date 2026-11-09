@@ -9,7 +9,7 @@ const store = {
 const COLORS = { ask: 'var(--c-ask)', alert: 'var(--c-alert)', lost: 'var(--c-lost)', offer: 'var(--c-offer)', chat: 'var(--c-chat)' };
 const state = {
   me: null, loc: null, radius: store.get('ftt.r') || 2, cat: '', sort: 'new', posts: [],
-  composeCat: 'chat', image: null, thread: null, loading: false,
+  composeCat: 'chat', composeTtl: store.get('ftt.ttl'), image: null, thread: null, loading: false,
 };
 
 /* ---------- api ---------- */
@@ -146,7 +146,7 @@ $('#refreshBtn').addEventListener('click', () => loadFeed());
 
 /* ---------- feed ---------- */
 function cardHtml(p, { inThread = false } = {}) {
-  const ttl = state.me.ttlHours * 60;
+  const ttl = p.life || state.me.ttlHours * 60;
   const frac = Math.max(0, Math.min(1, p.left / ttl));
   const C = 2 * Math.PI * 9;
   const cat = state.me.categories[p.cat] || '';
@@ -283,12 +283,23 @@ function openCompose() {
   if (!state.loc) return openPlaceSheet();
   if (state.me.banned) return toast('حسابك موقوف من النشر');
   $('#composeError').hidden = true;
-  $('#composeTtl').textContent = `${ar(state.me.ttlHours)} ساعة`;
+  renderTtl();
   renderFilters();
   showSheet('#composeSheet');
   setTimeout(() => $('#composeText').focus(), 250);
 }
 $('#composeBtn').addEventListener('click', openCompose);
+const hoursText = (h) => h === 1 ? 'ساعة' : h === 2 ? 'ساعتين' : `${ar(h)} ${h <= 10 ? 'ساعات' : 'ساعة'}`;
+function renderTtl() {
+  const choices = state.me.ttlChoices || [state.me.ttlHours];
+  if (!choices.includes(state.composeTtl)) state.composeTtl = choices[choices.length - 1];
+  $('#ttlOpts').innerHTML = choices.map((h) => `<button type="button" data-ttl="${h}" class="${h === state.composeTtl ? 'on' : ''}">${h === 1 ? 'ساعة' : ar(h) + ' س'}</button>`).join('');
+  $('#composeTtl').textContent = hoursText(state.composeTtl);
+}
+$('#ttlOpts').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-ttl]'); if (!b) return;
+  state.composeTtl = Number(b.dataset.ttl); store.set('ftt.ttl', state.composeTtl); renderTtl();
+});
 $('#composeText').addEventListener('input', () => {
   const n = $('#composeText').value.length;
   const c = $('#composeCount'); c.textContent = `${ar(n)} / ${ar(state.me.maxPost)}`; c.classList.toggle('near', n > state.me.maxPost - 30);
@@ -331,11 +342,11 @@ $('#composeSend').addEventListener('click', async () => {
     // a fresh GPS reading at the moment of sending, so the message lands exactly where you are
     let loc = state.loc;
     if (!loc.spot) { try { loc = await askGps(); state.loc = loc; } catch {} }
-    const r = await api('/api/posts', { method: 'POST', body: { text, cat: state.composeCat, lat: loc.lat, lng: loc.lng, image: state.image } });
+    const r = await api('/api/posts', { method: 'POST', body: { text, cat: state.composeCat, ttlHours: state.composeTtl, lat: loc.lat, lng: loc.lng, image: state.image } });
     $('#composeText').value = ''; $('#composeText').dispatchEvent(new Event('input'));
     $('#photoRemove').click();
     closeSheet();
-    toast('انزرعت 📍 وبتختفي بعد ' + ar(state.me.ttlHours) + ' ساعة');
+    toast('انزرعت 📍 وبتختفي بعد ' + hoursText(state.composeTtl));
     state.posts.unshift(r.post);
     if (state.sort !== 'new' || (state.cat && state.cat !== r.post.cat)) loadFeed({ silent: true }); else renderFeed({ widerCount: 0 });
     state.me.livePosts++;

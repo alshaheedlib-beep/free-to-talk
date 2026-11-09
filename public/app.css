@@ -143,6 +143,11 @@ textarea { width: 100%; border: 0; outline: 0; resize: none; background: transpa
 .preview { position: relative; margin-top: 10px; }
 .preview img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; display: block; }
 .preview .icon-btn { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.55); color: #fff; width: 34px; height: 34px; }
+.ttl { margin-top: 14px; }
+.ttl-label { display: block; font-size: .88rem; color: var(--ink-2); margin-bottom: 8px; }
+.ttl-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.ttl-opts button { flex: 1 0 auto; min-width: 58px; padding: 8px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); font-size: .88rem; color: var(--ink-2); }
+.ttl-opts button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--card)); color: var(--ink); font-weight: 600; }
 .promises { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 6px; font-size: .88rem; color: var(--ink-2); }
 .promises li { display: flex; gap: 8px; align-items: baseline; }
 .form-error { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); padding: 10px 12px; border-radius: 12px; font-size: .9rem; margin: 0 0 12px; }

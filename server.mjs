@@ -24,6 +24,13 @@ export const TEST_SPOTS = [
   { id: 'old', name: 'البلدة القديمة', lat: 31.5247, lng: 35.1107 },
 ];
 
+const TTL_STEPS = [1, 3, 6, 12, 24, 48, 72];
+function ttlChoices(S) {
+  const max = Math.min(72, Math.max(1, int(S.postTtlHours, 24)));
+  const list = TTL_STEPS.filter((h) => h < max);
+  return [...list, max];
+}
+
 /* ---------- identity: an anonymous device cookie, no name, no phone ---------- */
 const COOKIE = 'ftt';
 // The phone apps send a one-way hash of the device id (it never leaves the phone in clear),
@@ -101,6 +108,7 @@ function postView(p, me, lat, lng) {
     mine: p.user_id === me.id,
     ago: minutesAgo(p.created_at),
     left: Math.max(0, Math.round((p.expires_at - now()) / 60000)),
+    life: Math.max(1, Math.round((p.expires_at - p.created_at) / 60000)),
     dist: dist == null ? null : Math.round(dist),
     distText: dist == null ? '' : approxDistance(dist),
   };
@@ -117,7 +125,7 @@ async function api(req, res, url, me) {
     return sendJson(res, 200, {
       karma: me.karma, livePosts: posts, banned: !!me.banned,
       categories: CATEGORIES, testMode: S.testMode === '1', testSpots: S.testMode === '1' ? TEST_SPOTS : [],
-      ttlHours: int(S.postTtlHours, 24), maxPost: MAX_POST, maxReply: MAX_REPLY,
+      ttlHours: int(S.postTtlHours, 24), ttlChoices: ttlChoices(S), maxPost: MAX_POST, maxReply: MAX_REPLY,
     });
   }
 
@@ -174,7 +182,9 @@ async function api(req, res, url, me) {
       image = r.name;
     }
     const t = now();
-    const ttl = Math.min(72, Math.max(1, int(S.postTtlHours, 24))) * HOUR;
+    // The writer picks how long the message stays (1h … the admin's maximum, 24h by default).
+    const choices = ttlChoices(S);
+    const ttl = (choices.includes(int(body.ttlHours)) ? int(body.ttlHours) : choices[choices.length - 1]) * HOUR;
     const r = run(`INSERT INTO posts(user_id, cat, text, image, lat, lng, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       me.id, cat, text, image, roundCoord(lat), roundCoord(lng), t, t + ttl);
     const row = get('SELECT * FROM posts WHERE id = ?', Number(r.lastInsertRowid));
