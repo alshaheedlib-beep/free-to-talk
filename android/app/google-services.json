@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "70324962230",
+    "project_id": "honn-7dc30",
+    "storage_bucket": "honn-7dc30.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:70324962230:android:6cef83f10f8ea37af6b717",
+        "android_client_info": {
+          "package_name": "ps.alshaheed.hon"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhsCWN5HuV-0YJqDgheCAg5zMpXNEYrvg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
