@@ -6,7 +6,6 @@ set -euo pipefail
 REPO=https://github.com/alshaheedlib-beep/free-to-talk.git
 SRC=/opt/free-to-talk
 NAME=free-to-talk
-PORT=8082
 DOMAIN=talk.alshaheed.ps
 
 command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
@@ -18,6 +17,7 @@ else git clone -q "$REPO" "$SRC"; fi
 # 2) بناء وتشغيل التطبيق (الرسائل والصور محفوظة في /opt/freetotalk-data)
 echo ">> بناء التطبيق وتشغيله… (أول مرة بتاخذ دقيقة أو دقيقتين)"
 bash "$SRC/deploy/run.sh"
+PORT=$(cat /opt/freetotalk-data/port)
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then ufw allow $PORT/tcp >/dev/null; fi
 
 # 3) رابط آمن (https) عن طريق Caddy — ضروري عشان الموبايل يعطي الموقع الحقيقي

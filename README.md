@@ -20,8 +20,8 @@
 ```
 curl -fsSL https://raw.githubusercontent.com/alshaheedlib-beep/free-to-talk/main/install.sh | bash
 ```
-- التطبيق على المنفذ **8082**، وعلى `https://talk.alshaheed.ps` عبر Caddy بعد إضافة سجل A باسم `talk` يأشر على IP السيرفر.
-- **ليش الرابط الآمن مهم؟** الموبايل ما بيعطي الموقع الحقيقي إلا على https. على `http://IP:8082` جرّب بالأماكن التجريبية.
+- التطبيق على أول منفذ فاضي من **8090** وطالع (محفوظ في `/opt/freetotalk-data/port`)، وعلى `https://talk.alshaheed.ps` عبر Caddy بعد إضافة سجل A باسم `talk` يأشر على IP السيرفر.
+- **ليش الرابط الآمن مهم؟** الموبايل ما بيعطي الموقع الحقيقي إلا على https. على `http://IP:المنفذ` جرّب بالأماكن التجريبية.
 - البيانات في `/opt/freetotalk-data` (تبقى مع كل تحديث). كلمة سر اللوحة في `/opt/freetotalk-data/admin-password.txt`.
 - كل دقيقة بيفحص GitHub، وعند وجود تعديل بيبني التطبيق من جديد (السجل في `/var/log/free-to-talk-deploy.log`).
 
