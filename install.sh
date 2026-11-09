@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Free to Talk — تركيب التطبيق على السيرفر (مرة واحدة فقط):
+# هون (Hon) — تركيب التطبيق على السيرفر (مرة واحدة فقط):
 #   curl -fsSL https://raw.githubusercontent.com/alshaheedlib-beep/free-to-talk/main/install.sh | bash
 # بعدها أي تعديل يُرفع على GitHub يظهر على السيرفر خلال دقيقة أو دقيقتين، بدون أي خطوة.
 set -euo pipefail

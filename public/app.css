@@ -40,11 +40,14 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 
 /* header */
 .top { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px 6px; }
-.brand { display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: flex-end; gap: 10px; }
+.wordmark { width: 92px; height: 47px; margin: 0; background: url(/wordmark.svg) no-repeat center / contain; }
+@media (prefers-color-scheme: dark) { .wordmark { background-image: url(/wordmark-light.svg); } }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .logo { width: 42px; height: 42px; display: grid; place-items: center; color: var(--ink); }
 .logo svg { width: 42px; height: 42px; stroke: none; }
 h1 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; direction: ltr; text-align: right; }
-.tag { margin: -2px 0 0; font-size: .82rem; color: var(--muted); }
+.tag { margin: 0 0 4px; font-size: .82rem; color: var(--muted); }
 .icon-btn { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-2); }
 .icon-btn:active { background: var(--line); }
 
@@ -66,6 +69,7 @@ h1 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; di
 .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .chip.on { background: var(--c, var(--ink)); border-color: transparent; color: #fff; }
 .chip.on i { background: #fff; }
+.chip.on:not([style]) { color: var(--bg); }
 
 .sortbar { display: flex; align-items: center; justify-content: space-between; padding: 2px 16px 6px; }
 .sort { display: flex; gap: 14px; }

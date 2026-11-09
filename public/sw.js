@@ -1,6 +1,6 @@
 // Keeps the app shell available offline; messages always come fresh from the network.
-const CACHE = 'ftt-v1';
-const SHELL = ['/', '/app.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
+const CACHE = 'hon-v2';
+const SHELL = ['/', '/app.css', '/app.js', '/icon.svg', '/wordmark.svg', '/manifest.webmanifest'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));

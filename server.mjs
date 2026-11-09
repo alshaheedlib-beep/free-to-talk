@@ -422,5 +422,5 @@ function sweep() {
 sweep();
 setInterval(sweep, 5 * 60_000).unref();
 
-server.listen(PORT, process.env.HOST || '0.0.0.0', () => console.log(`Free to Talk on http://localhost:${PORT}  (admin: /admin)`));
+server.listen(PORT, process.env.HOST || '0.0.0.0', () => console.log(`هون (Hon) on http://localhost:${PORT}  (admin: /admin)`));
 process.on('SIGTERM', () => { server.close(); db.close(); process.exit(0); });
