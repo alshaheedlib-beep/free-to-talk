@@ -1,0 +1,12 @@
+{
+  "name": "free-to-talk",
+  "version": "0.1.0",
+  "description": "Free to Talk — المكان بيحكي: anonymous, place-pinned messages that vanish after 24h. Zero dependencies, Node 22+",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --no-warnings server.mjs",
+    "dev": "node --no-warnings --watch server.mjs"
+  }
+}

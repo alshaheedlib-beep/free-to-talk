@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>لوحة التحكم — Free to Talk</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+<div class="adm">
+  <section id="login" class="login" hidden>
+    <img src="/icon.svg" alt="" width="64" height="64">
+    <h1>لوحة التحكم</h1>
+    <form id="loginForm">
+      <input type="password" id="pw" placeholder="كلمة السر" autocomplete="current-password" required>
+      <button class="primary" type="submit">دخول</button>
+      <p class="form-error" id="loginErr" hidden></p>
+    </form>
+  </section>
+
+  <section id="panel" hidden>
+    <header class="adm-top">
+      <h1>Free to Talk <span>لوحة التحكم</span></h1>
+      <button class="ghost small" id="logout">خروج</button>
+    </header>
+
+    <div class="stats" id="stats"></div>
+
+    <nav class="tabs">
+      <button data-tab="queue" class="on">البلاغات <b id="qCount"></b></button>
+      <button data-tab="recent">آخر الرسائل</button>
+      <button data-tab="settings">الإعدادات</button>
+    </nav>
+
+    <div data-pane="queue" id="queue"></div>
+    <div data-pane="recent" id="recent" hidden></div>
+    <form data-pane="settings" id="settings" hidden>
+      <label class="row"><input type="checkbox" name="testMode"> <span>الأماكن التجريبية (للتجربة بدون GPS — طفّيها عند الإطلاق)</span></label>
+      <div class="grid">
+        <label>مدة بقاء الرسالة (ساعات)<input type="number" name="postTtlHours" min="1" max="72"></label>
+        <label>عدد البلاغات لإخفاء الرسالة<input type="number" name="reportsToHide" min="1"></label>
+        <label>فرق التقييم السلبي لإخفائها<input type="number" name="downvotesToHide" min="2"></label>
+        <label>رسائل بالساعة لكل شخص<input type="number" name="postsPerHour" min="1"></label>
+        <label>ردود بالساعة لكل شخص<input type="number" name="repliesPerHour" min="1"></label>
+      </div>
+      <label>الكلمات الممنوعة (كلمة بكل سطر — بالعامية والفصحى)
+        <textarea name="bannedWords" rows="10" placeholder="كلمة&#10;كلمة ثانية"></textarea>
+      </label>
+      <p class="muted">التطبيق بيتجاهل التشكيل والهمزات والأحرف المكررة، فبتكفي كتابة الكلمة مرة وحدة.</p>
+      <button class="primary" type="submit">حفظ الإعدادات</button>
+    </form>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="/admin.js" type="module"></script>
+</body>
+</html>

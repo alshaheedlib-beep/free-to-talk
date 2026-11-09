@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Free to Talk — المكان بيحكي</title>
+<meta name="description" content="شو صاير حواليك الآن؟ رسائل مجهولة بتنزرع بمكانها وبتختفي بعد 24 ساعة.">
+<meta name="theme-color" content="#14213d">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Free to Talk">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 3C9.4 3 4 8.2 4 14.6c0 4 2.1 7.5 5.4 9.6L8.5 29l5.4-3.1c.7.1 1.4.2 2.1.2 6.6 0 12-5.2 12-11.5S22.6 3 16 3Z" fill="currentColor"/><circle cx="16" cy="14.5" r="4" fill="var(--accent)"/></svg></span>
+      <div>
+        <h1>Free to Talk</h1>
+        <p class="tag">المكان بيحكي</p>
+      </div>
+    </div>
+    <button class="icon-btn" id="meBtn" aria-label="حسابي">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+    </button>
+  </header>
+
+  <section class="place" id="place">
+    <button class="place-chip" id="placeChip">
+      <span class="pulse" aria-hidden="true"></span>
+      <span id="placeName">بنحدد موقعك…</span>
+      <svg viewBox="0 0 24 24" class="chev"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <div class="radius" role="group" aria-label="نطاق البحث">
+      <button data-r="1">١ كم</button>
+      <button data-r="2" class="on">٢ كم</button>
+      <button data-r="5">٥ كم</button>
+    </div>
+  </section>
+
+  <nav class="filters" id="filters" aria-label="التصنيفات"></nav>
+
+  <div class="sortbar">
+    <div class="sort" role="group" aria-label="الترتيب">
+      <button data-sort="new" class="on">الأحدث</button>
+      <button data-sort="near">الأقرب</button>
+      <button data-sort="top">الأكثر تفاعلاً</button>
+    </div>
+    <button class="refresh" id="refreshBtn" aria-label="تحديث">
+      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+    </button>
+  </div>
+
+  <main id="feed" class="feed" aria-live="polite"></main>
+
+  <button class="fab" id="composeBtn">
+    <svg viewBox="0 0 24 24"><path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11Z"/><path d="M12 7v6M9 10h6"/></svg>
+    <span>ازرع رسالة هون</span>
+  </button>
+</div>
+
+<!-- bottom sheets -->
+<div class="scrim" id="scrim" hidden></div>
+
+<section class="sheet" id="composeSheet" hidden aria-label="رسالة جديدة">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <h2>رسالة جديدة</h2>
+    <button class="icon-btn close" data-close aria-label="إغلاق"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <div class="cats" id="composeCats"></div>
+  <div class="field">
+    <textarea id="composeText" rows="4" placeholder="شو صاير حواليك هلأ؟" maxlength="280"></textarea>
+    <div class="field-foot">
+      <button class="photo-btn" id="photoBtn" type="button">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+        صورة وحدة
+      </button>
+      <input type="file" id="photoInput" accept="image/*" hidden>
+      <span class="count" id="composeCount">٠ / ٢٨٠</span>
+    </div>
+    <div class="preview" id="photoPreview" hidden>
+      <img alt="الصورة المرفقة">
+      <button class="icon-btn" id="photoRemove" aria-label="حذف الصورة"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+  </div>
+  <ul class="promises">
+    <li><span>📍</span><span>بتنزرع <b id="composePlace">بمكانك الحالي</b>، وبتضل هون حتى لو مشيت</span></li>
+    <li><span>⏳</span><span>بتختفي لحالها بعد <b id="composeTtl">24 ساعة</b>، هي والردود</span></li>
+    <li><span>🕶️</span><span>بدون اسم ولا صورة شخصية</span></li>
+  </ul>
+  <p class="form-error" id="composeError" hidden></p>
+  <button class="primary" id="composeSend">بُث الرسالة</button>
+</section>
+
+<section class="sheet tall" id="threadSheet" hidden aria-label="الردود">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <h2>الردود</h2>
+    <button class="icon-btn close" data-close aria-label="إغلاق"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <div class="thread-post" id="threadPost"></div>
+  <div class="replies" id="replies"></div>
+  <form class="reply-bar" id="replyForm">
+    <input id="replyText" maxlength="200" placeholder="اكتب ردّك…" autocomplete="off">
+    <button class="primary small" type="submit">رد</button>
+  </form>
+</section>
+
+<section class="sheet" id="menuSheet" hidden aria-label="خيارات">
+  <div class="grab"></div>
+  <div class="menu" id="menu"></div>
+</section>
+
+<section class="sheet" id="placeSheet" hidden aria-label="الموقع">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <h2>وين إنت؟</h2>
+    <button class="icon-btn close" data-close aria-label="إغلاق"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <p class="muted" id="placeNote">التطبيق بيعرضلك اللي حواليك بس، فبنحتاج موقعك. ما بنحفظ موقعك الدقيق أبداً.</p>
+  <button class="primary" id="useGps">استخدم موقعي الحقيقي</button>
+  <div id="spotsBox" hidden>
+    <p class="label">أو جرّب من مكان تجريبي</p>
+    <div class="spots" id="spots"></div>
+  </div>
+</section>
+
+<section class="sheet" id="meSheet" hidden aria-label="حسابي">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <h2>إنت هون مجهول</h2>
+    <button class="icon-btn close" data-close aria-label="إغلاق"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <div class="karma">
+    <div><b id="meKarma">٠</b><span>نقاط السمعة</span></div>
+    <div><b id="mePosts">٠</b><span>رسائلك الحية</span></div>
+  </div>
+  <p class="muted">النقاط بتطلع من تقييم الناس لرسائلك. ما حدا بيشوفها غيرك. لما تكثر التقييمات السلبية بتنحصر بـ رسالة وحدة باليوم.</p>
+  <button class="ghost" id="clearBlocks">إلغاء كل الحظر اللي عملته</button>
+</section>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>
