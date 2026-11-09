@@ -5,7 +5,7 @@ import CryptoKit
 
 /// "هون" for iPhone: a thin shell around https://talk.alshaheed.ps.
 /// Everything comes from the server, so every update reaches installed apps right away.
-final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, CLLocationManagerDelegate {
+final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, CLLocationManagerDelegate, WKScriptMessageHandler {
 
     private static let appURL = URL(string: "https://talk.alshaheed.ps/")!
     private static let appHost = "talk.alshaheed.ps"
@@ -29,6 +29,26 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         window.HonNative = { deviceId: function () { return '\(Self.deviceHash())'; }, platform: function () { return 'ios'; } };
         """
         config.userContentController.addUserScript(WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        // The page's navigator.geolocation is answered by the app itself, so iPhone asks for location
+        // once (for "هون"), not a second time for the website.
+        let geo = """
+        (function () {
+          var waiting = {}, seq = 0;
+          window.__honGeo = function (id, ok, lat, lng, acc, code, msg) {
+            var w = waiting[id]; if (!w) return; delete waiting[id];
+            if (ok) w.ok({ coords: { latitude: lat, longitude: lng, accuracy: acc, altitude: null, altitudeAccuracy: null, heading: null, speed: null }, timestamp: Date.now() });
+            else if (w.err) w.err({ code: code, message: msg, PERMISSION_DENIED: 1, POSITION_UNAVAILABLE: 2, TIMEOUT: 3 });
+          };
+          var geo = {
+            getCurrentPosition: function (ok, err) { var id = ++seq; waiting[id] = { ok: ok, err: err }; window.webkit.messageHandlers.honGeo.postMessage(id); },
+            watchPosition: function (ok, err) { this.getCurrentPosition(ok, err); return 0; },
+            clearWatch: function () {}
+          };
+          try { Object.defineProperty(navigator, 'geolocation', { value: geo, configurable: true }); } catch (e) {}
+        })();
+        """
+        config.userContentController.addUserScript(WKUserScript(source: geo, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController.add(self, name: "honGeo")
         config.applicationNameForUserAgent = "HonApp/iOS"
 
         web = WKWebView(frame: .zero, configuration: config)
@@ -46,11 +66,55 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
 
-        // Ask for location once at app level, so the page can use GPS.
         location.delegate = self
-        if location.authorizationStatus == .notDetermined { location.requestWhenInUseAuthorization() }
+        location.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
 
         web.load(URLRequest(url: Self.appURL))
+    }
+
+    // MARK: - Location for the page
+
+    private var geoWaiting: [Int] = []
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "honGeo", let id = message.body as? Int else { return }
+        geoWaiting.append(id)
+        switch location.authorizationStatus {
+        case .notDetermined: location.requestWhenInUseAuthorization()   // answer arrives in the delegate below
+        case .denied, .restricted: answerGeo(nil, code: 1, message: "denied")
+        default: location.requestLocation()
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard !geoWaiting.isEmpty else { return }
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways: manager.requestLocation()
+        case .denied, .restricted: answerGeo(nil, code: 1, message: "denied")
+        default: break
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        answerGeo(locations.last, code: 0, message: "")
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        let denied = (error as? CLError)?.code == .denied
+        answerGeo(nil, code: denied ? 1 : 2, message: error.localizedDescription)
+    }
+
+    private func answerGeo(_ loc: CLLocation?, code: Int, message: String) {
+        let ids = geoWaiting; geoWaiting.removeAll()
+        for id in ids {
+            let js: String
+            if let l = loc {
+                js = "window.__honGeo(\(id), true, \(l.coordinate.latitude), \(l.coordinate.longitude), \(l.horizontalAccuracy))"
+            } else {
+                js = "window.__honGeo(\(id), false, 0, 0, 0, \(code), 'location')"
+            }
+            web.evaluateJavaScript(js, completionHandler: nil)
+        }
     }
 
     /// One-way hash of the vendor id: lets a ban stick to this phone without revealing anything.
