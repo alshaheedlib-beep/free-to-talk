@@ -1,0 +1,51 @@
+# Builds the هون iPhone app for the simulator (no Apple account needed), tries it on an
+# iPhone simulator and attaches the app + screenshots to a GitHub release.
+# The zip can be uploaded to appetize.io to try the app from any browser.
+name: iOS Simulator
+
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Build for simulator
+        run: |
+          cd ios
+          xcodebuild build -project Hon.xcodeproj -scheme Hon -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO | tail -40
+          test -d build/Build/Products/Release-iphonesimulator/Hon.app
+
+      - name: Zip app
+        run: cd ios/build/Build/Products/Release-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/hon-ios-simulator.zip" Hon.app
+
+      - name: Simulator test
+        continue-on-error: true
+        run: bash ios/ci/simulator-test.sh
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-sim-v${{ github.run_number }}
+          name: هون آيفون (محاكي) — نسخة ${{ github.run_number }}
+          body: |
+            نسخة الآيفون للمحاكي. ارفع hon-ios-simulator.zip على appetize.io لتجرّبها من المتصفح.
+            للتجربة على آيفون حقيقي بنحتاج حساب Apple Developer و TestFlight.
+          files: |
+            hon-ios-simulator.zip
+            shots/*.png
+          make_latest: false

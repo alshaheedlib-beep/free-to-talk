@@ -13,10 +13,14 @@ const state = {
 };
 
 /* ---------- api ---------- */
+// Inside the phone app, a hashed device id lets bans stick to the phone.
+const DEVICE = (() => { try { return window.HonNative?.deviceId?.() || ''; } catch { return ''; } })();
 async function api(path, opts = {}) {
+  const headers = opts.body ? { 'Content-Type': 'application/json' } : {};
+  if (DEVICE) headers['X-Hon-Device'] = DEVICE;
   const res = await fetch(path, {
     method: opts.method || 'GET',
-    headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+    headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
     credentials: 'same-origin',
   });

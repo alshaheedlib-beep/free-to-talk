@@ -1,0 +1,39 @@
+name: Hon
+options:
+  bundleIdPrefix: ps.alshaheed
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  Hon:
+    type: application
+    platform: iOS
+    sources: [Hon]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ps.alshaheed.hon
+        PRODUCT_NAME: Hon
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: Hon/Info.plist
+      properties:
+        CFBundleDisplayName: هون
+        CFBundleDevelopmentRegion: ar
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UIViewControllerBasedStatusBarAppearance: false
+        UILaunchScreen:
+          UIColorName: LaunchBg
+          UIImageName: LaunchLogo
+        NSLocationWhenInUseUsageDescription: "هون بيعرضلك الرسائل اللي حواليك، وبيزرع رسالتك بمكانك. ما بنحفظ موقعك الدقيق."
+        NSCameraUsageDescription: "لتصوير صورة وترفقها برسالتك."
+        NSPhotoLibraryUsageDescription: "لتختار صورة من الاستوديو وترفقها برسالتك."
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false

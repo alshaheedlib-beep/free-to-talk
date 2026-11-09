@@ -26,20 +26,28 @@ export const TEST_SPOTS = [
 
 /* ---------- identity: an anonymous device cookie, no name, no phone ---------- */
 const COOKIE = 'ftt';
+// The phone apps send a one-way hash of the device id (it never leaves the phone in clear),
+// so a banned person stays banned even after deleting and reinstalling the app.
+function deviceHash(req) {
+  const d = String(req.headers['x-hon-device'] || '');
+  return /^[a-f0-9]{64}$/.test(d) ? sha256(`hon-device:${d}`) : null;
+}
 function currentUser(req, res) {
   const token = parseCookies(req)[COOKIE];
   const t = now();
-  if (token && token.length >= 30) {
-    const u = get('SELECT * FROM users WHERE token_hash = ?', sha256(token));
-    if (u) {
-      if (t - u.last_seen > HOUR) run('UPDATE users SET last_seen = ? WHERE id = ?', t, u.id);
-      return u;
-    }
+  const dh = deviceHash(req);
+  let u = token && token.length >= 30 ? get('SELECT * FROM users WHERE token_hash = ?', sha256(token)) : null;
+  if (!u) {
+    const fresh = randomToken();
+    const r = run('INSERT INTO users(token_hash, created_at, last_seen) VALUES (?, ?, ?)', sha256(fresh), t, t);
+    res.setHeader('Set-Cookie', cookie(COOKIE, fresh, { maxAge: 400 * 86400, secure: isHttps(req) }));
+    u = get('SELECT * FROM users WHERE id = ?', Number(r.lastInsertRowid));
+  } else if (t - u.last_seen > HOUR) run('UPDATE users SET last_seen = ? WHERE id = ?', t, u.id);
+  if (dh && u.device_hash !== dh) { run('UPDATE users SET device_hash = ? WHERE id = ?', dh, u.id); u.device_hash = dh; }
+  if (!u.banned && u.device_hash && get('SELECT 1 AS x FROM banned_devices WHERE device_hash = ?', u.device_hash)) {
+    run('UPDATE users SET banned = 1 WHERE id = ?', u.id); u.banned = 1;
   }
-  const fresh = randomToken();
-  const r = run('INSERT INTO users(token_hash, created_at, last_seen) VALUES (?, ?, ?)', sha256(fresh), t, t);
-  res.setHeader('Set-Cookie', cookie(COOKIE, fresh, { maxAge: 400 * 86400, secure: isHttps(req) }));
-  return get('SELECT * FROM users WHERE id = ?', Number(r.lastInsertRowid));
+  return u;
 }
 const isHttps = (req) => String(req.headers['x-forwarded-proto'] || '').startsWith('https');
 
@@ -323,8 +331,15 @@ async function adminApi(req, res, url) {
     if (act === 'restore') { run(`UPDATE ${table} SET status = 'live', reports = 0 WHERE id = ?`, id); run('DELETE FROM reports WHERE kind = ? AND target_id = ?', kind, id); }
     if (act === 'hide') run(`UPDATE ${table} SET status = 'hidden' WHERE id = ?`, id);
     if (act === 'remove') { run(`UPDATE ${table} SET status = 'removed' WHERE id = ?`, id); if (kind === 'post') { deleteImage(row.image); run('UPDATE posts SET image = NULL WHERE id = ?', id); } }
-    if (act === 'ban') { run('UPDATE users SET banned = 1 WHERE id = ?', row.user_id); run(`UPDATE posts SET status='removed' WHERE user_id = ? AND status != 'removed'`, row.user_id); run(`UPDATE replies SET status='removed' WHERE user_id = ?`, row.user_id); }
-    if (act === 'unban') run('UPDATE users SET banned = 0 WHERE id = ?', row.user_id);
+    if (act === 'ban') {
+      const dev = get('SELECT device_hash FROM users WHERE id = ?', row.user_id)?.device_hash;
+      if (dev) { run('INSERT OR IGNORE INTO banned_devices(device_hash, created_at) VALUES (?, ?)', dev, now()); run('UPDATE users SET banned = 1 WHERE device_hash = ?', dev); }
+      run('UPDATE users SET banned = 1 WHERE id = ?', row.user_id); run(`UPDATE posts SET status='removed' WHERE user_id = ? AND status != 'removed'`, row.user_id); run(`UPDATE replies SET status='removed' WHERE user_id = ?`, row.user_id); }
+    if (act === 'unban') {
+      const dev = get('SELECT device_hash FROM users WHERE id = ?', row.user_id)?.device_hash;
+      if (dev) { run('DELETE FROM banned_devices WHERE device_hash = ?', dev); run('UPDATE users SET banned = 0 WHERE device_hash = ?', dev); }
+      run('UPDATE users SET banned = 0 WHERE id = ?', row.user_id);
+    }
     if (kind === 'post') recomputeKarma(row.user_id);
     return sendJson(res, 200, { ok: true });
   }

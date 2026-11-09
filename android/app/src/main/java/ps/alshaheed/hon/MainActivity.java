@@ -12,7 +12,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowInsets;
+import android.provider.Settings;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.GeolocationPermissions;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -73,6 +75,8 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setUserAgentString(s.getUserAgentString() + " HonApp/Android/" + BuildConfig.VERSION_NAME);
 
+        web.addJavascriptInterface(new Native(), "HonNative");
+
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(web, false);
@@ -122,6 +126,28 @@ public class MainActivity extends Activity {
         Uri link = getIntent() != null ? getIntent().getData() : null;
         if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else web.loadUrl(link != null && BuildConfig.APP_HOST.equals(link.getHost()) ? link.toString() : BuildConfig.APP_URL);
+    }
+
+    /** What the page can ask the app. Only our own site is ever loaded in this WebView. */
+    private class Native {
+        /** One-way hash of this phone's Android ID: stable across reinstalls, never sent in clear. */
+        @JavascriptInterface
+        public String deviceId() {
+            try {
+                String id = Settings.Secure.getString(getContentResolver(), Settings.Secure.ANDROID_ID);
+                if (id == null) return "";
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] h = md.digest(("hon:" + getPackageName() + ":" + id).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                for (byte b : h) sb.append(String.format("%02x", b));
+                return sb.toString();
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        @JavascriptInterface
+        public String platform() { return "android"; }
     }
 
     private boolean hasLocationPermission() {
