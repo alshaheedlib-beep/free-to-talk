@@ -6,3 +6,5 @@ uploads/*
 .git
 README.md
 install.sh
+android
+.github

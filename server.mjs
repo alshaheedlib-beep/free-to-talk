@@ -374,6 +374,11 @@ const server = http.createServer(async (req, res) => {
     const p = url.pathname;
 
     if (p === '/healthz') return sendJson(res, 200, { ok: true });
+    // Short link for testers: always the newest Android build from GitHub.
+    if (p === '/android' || p === '/android/') {
+      res.writeHead(302, { Location: 'https://github.com/alshaheedlib-beep/free-to-talk/releases/latest/download/hon.apk', 'Cache-Control': 'no-store' });
+      return res.end();
+    }
 
     if (p.startsWith('/api/')) {
       if (req.method !== 'GET' && !sameOrigin(req)) return fail(res, 403, 'طلب مرفوض');

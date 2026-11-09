@@ -55,6 +55,8 @@ function closeSheet() {
 $('#scrim').addEventListener('click', closeSheet);
 document.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeSheet(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+// Android app: the back button closes an open sheet before leaving the app.
+window.honBack = () => { if (!openSheet) return false; closeSheet(); return true; };
 
 /* ---------- location ---------- */
 function setLocation(loc) {

@@ -31,3 +31,9 @@ curl -fsSL https://raw.githubusercontent.com/alshaheedlib-beep/free-to-talk/main
 ```
 npm start   # http://localhost:3000  —  /admin  (كلمة السر: admin)
 ```
+
+## تطبيق أندرويد
+- مجلد `android/`: تطبيق خفيف بيفتح `https://talk.alshaheed.ps` — أي تعديل على الموقع بيظهر بالتطبيق فوراً بدون تحديث.
+- كل تعديل على `android/` بيبني APK جديد أوتوماتيك على GitHub (Actions) وبينزل كـ Release.
+- رابط التنزيل الدائم لأحدث نسخة: **https://talk.alshaheed.ps/android**
+- التوقيع حالياً بمفتاح تجريبي (`android/hon-test.keystore`). قبل Google Play بنعمل مفتاح خاص محفوظ كـ GitHub Secret.
