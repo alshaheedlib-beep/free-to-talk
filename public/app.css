@@ -190,3 +190,48 @@ textarea { width: 100%; border: 0; outline: 0; resize: none; background: transpa
 .toast { position: fixed; z-index: 40; bottom: calc(90px + var(--safe-b)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: .9rem; max-width: calc(100% - 32px); text-align: center; animation: rise .25s; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; } }
+
+/* ---------- pulse ---------- */
+.pulse-bar { margin: 2px 16px 0; padding: 7px 14px; border-radius: 12px; font-size: .86rem; color: var(--ink-2);
+  background: color-mix(in srgb, var(--c-alert) 10%, var(--card)); border: 1px solid color-mix(in srgb, var(--c-alert) 25%, transparent);
+  display: flex; align-items: center; gap: 8px; animation: rise .35s ease both; }
+.pulse-bar b { color: var(--c-alert); }
+.pulse-bar .beat { width: 8px; height: 8px; border-radius: 50%; background: var(--c-alert); flex: none; animation: beat 1.4s infinite; }
+@keyframes beat { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.6); opacity: .5; } }
+
+/* ---------- locked messages ---------- */
+.chip.lockchip { --c: var(--ink); }
+.lock-toggle { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line); cursor: pointer; }
+.lock-toggle:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+.lock-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.lt-ico { font-size: 1.4rem; }
+.lt-text { flex: 1; display: grid; line-height: 1.4; }
+.lt-text small { color: var(--muted); font-size: .8rem; }
+.lt-switch { width: 42px; height: 24px; border-radius: 99px; background: var(--line); position: relative; flex: none; transition: background .2s; }
+.lt-switch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: right .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.lock-toggle input:checked ~ .lt-switch { background: var(--accent); }
+.lock-toggle input:checked ~ .lt-switch::after { right: 21px; }
+.lock-toggle input:focus-visible ~ .lt-switch { outline: 2px solid var(--ink-2); outline-offset: 2px; }
+
+.card.sealed { background: linear-gradient(135deg, var(--ink) 0%, color-mix(in srgb, var(--ink) 80%, var(--c)) 100%); color: var(--bg); border-inline-start-color: var(--accent); }
+.card.sealed .card-head, .card.sealed .life { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.card.sealed .badge { color: var(--accent); } .card.sealed .badge i { background: var(--accent); }
+.card.sealed .more { color: var(--bg); }
+.seal { display: flex; align-items: center; gap: 14px; margin: 12px 0 14px; }
+.seal-ico { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-size: 1.6rem; background: color-mix(in srgb, var(--accent) 22%, transparent); flex: none; }
+.seal b { display: block; font-size: 1.05rem; }
+.seal p { margin: 0; font-size: .88rem; opacity: .8; }
+.go-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: .88rem; text-decoration: none; }
+.go-btn svg { width: 18px; height: 18px; }
+.opens { font-size: .78rem; opacity: .8; }
+.unlocked-tag { font-size: .72rem; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--ink); font-weight: 600; }
+.card.just-opened { animation: unlock .9s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes unlock { 0% { transform: scale(.94); box-shadow: 0 0 0 0 rgba(252,163,17,.9); } 60% { transform: scale(1.02); box-shadow: 0 0 0 14px rgba(252,163,17,0); } 100% { transform: none; } }
+
+/* ---------- share ---------- */
+.share-btn { width: 36px; height: 34px; display: grid; place-items: center; border-radius: 999px; color: var(--muted); }
+.share-btn svg { width: 19px; height: 19px; }
+.card.sealed .share-btn { color: var(--bg); }
+.share-preview { display: grid; place-items: center; background: var(--bg); border-radius: 16px; padding: 12px; margin-bottom: 12px; }
+.share-preview img { width: min(62vw, 240px); aspect-ratio: 9 / 16; border-radius: 12px; box-shadow: var(--shadow); background: var(--line); object-fit: cover; }
+.share-save { display: block; text-align: center; margin-top: 8px; text-decoration: none; }

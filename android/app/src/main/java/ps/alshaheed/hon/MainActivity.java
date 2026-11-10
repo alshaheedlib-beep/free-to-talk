@@ -192,6 +192,26 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** Share the story card (PNG, base64) to Instagram, WhatsApp… through Android's share sheet. */
+        @JavascriptInterface
+        public void shareImage(String base64, String text) {
+            try {
+                java.io.File dir = new java.io.File(getCacheDir(), "share");
+                dir.mkdirs();
+                java.io.File f = new java.io.File(dir, "hon.png");
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(f)) {
+                    out.write(android.util.Base64.decode(base64, android.util.Base64.DEFAULT));
+                }
+                Uri uri = androidx.core.content.FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                Intent send = new Intent(Intent.ACTION_SEND)
+                    .setType("image/png")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .putExtra(Intent.EXTRA_TEXT, text)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                runOnUiThread(() -> startActivity(Intent.createChooser(send, "شارك هون")));
+            } catch (Exception ignored) { }
+        }
+
         @JavascriptInterface
         public String pushToken() { return getSharedPreferences("hon", MODE_PRIVATE).getString("push_token", ""); }
     }

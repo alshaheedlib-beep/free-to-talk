@@ -38,6 +38,7 @@ function itemHtml(x) {
   return `<div class="item ${x.status === 'hidden' ? 'hidden-item' : ''}" style="--c:${COLORS[x.cat] || 'var(--line)'}" data-kind="${x.kind}" data-id="${x.id}">
     <div class="meta">
       <span class="pill">${x.kind === 'post' ? (data.categories[x.cat] || 'رسالة') : `رد على رسالة #${x.post_id}`}</span>
+      ${x.locked ? `<span class="pill">🔒 مقفولة${x.opens != null ? ` · انفتحت لـ ${x.opens}` : ''}</span>` : ''}
       <span class="pill ${x.status === 'hidden' ? 'red' : ''}">${STATUS[x.status] || x.status}${expired ? ' · انتهت مدتها' : ''}</span>
       ${x.reports ? `<span class="pill red">${x.reports} بلاغ: ${esc(x.reasons.join('، '))}</span>` : ''}
       ${x.kind === 'post' ? `<span>👍 ${x.up} · 👎 ${x.down}</span>` : ''}

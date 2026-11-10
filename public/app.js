@@ -77,7 +77,7 @@ function askGps() {
     const guard = setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 3 })), 20000);
     navigator.geolocation.getCurrentPosition(
       (p) => { clearTimeout(guard); resolve({ lat: p.coords.latitude, lng: p.coords.longitude, name: 'حواليك', spot: null }); },
-      (e) => { clearTimeout(guard); reject(e); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+      (e) => { clearTimeout(guard); reject(e); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 15000 });
   });
 }
 // After your first message or reply, the phone app asks once whether you want reply notifications.
@@ -128,7 +128,8 @@ $('#spots').addEventListener('click', (e) => {
 function renderFilters() {
   const cats = state.me.categories;
   $('#filters').innerHTML = `<button class="chip ${state.cat ? '' : 'on'}" data-cat="">الكل</button>` +
-    Object.entries(cats).map(([k, v]) => `<button class="chip ${state.cat === k ? 'on' : ''}" data-cat="${k}" style="--c:${COLORS[k]}"><i></i>${v}</button>`).join('');
+    Object.entries(cats).map(([k, v]) => `<button class="chip ${state.cat === k ? 'on' : ''}" data-cat="${k}" style="--c:${COLORS[k]}"><i></i>${v}</button>`).join('') +
+    `<button class="chip lockchip ${state.cat === 'locked' ? 'on' : ''}" data-cat="locked" style="--c:var(--ink)">🔒 مقفولة</button>`;
   $('#composeCats').innerHTML = Object.entries(cats).map(([k, v]) =>
     `<button class="chip ${state.composeCat === k ? 'on' : ''}" data-ccat="${k}" style="--c:${COLORS[k]}"><i></i>${v}</button>`).join('');
 }
@@ -150,21 +151,59 @@ $$('.radius button').forEach((b) => {
 $$('.sort button').forEach((b) => b.addEventListener('click', () => {
   state.sort = b.dataset.sort; $$('.sort button').forEach((x) => x.classList.toggle('on', x === b)); loadFeed();
 }));
-$('#refreshBtn').addEventListener('click', () => loadFeed());
+$('#refreshBtn').addEventListener('click', () => refreshHere());
+// While you walk, keep your position fresh so locked messages open when you reach them.
+async function refreshHere({ silent = false } = {}) {
+  if (state.loc && !state.loc.spot) {
+    try { const l = await askGps(); state.loc = { ...state.loc, lat: l.lat, lng: l.lng }; } catch {}
+  }
+  return loadFeed({ silent });
+}
 
 /* ---------- feed ---------- */
-function cardHtml(p, { inThread = false } = {}) {
+const SHARE_ICON = '<svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+const opensText = (n) => n ? `انفتحت لـ ${ar(n)} ${n === 1 ? 'شخص' : n <= 10 ? 'أشخاص' : 'شخص'}` : 'لسا ما حدا فتحها';
+function lifeHtml(p) {
   const ttl = p.life || state.me.ttlHours * 60;
   const frac = Math.max(0, Math.min(1, p.left / ttl));
   const C = 2 * Math.PI * 9;
+  return `<span class="life" title="الوقت المتبقي قبل ما تختفي">
+        <svg viewBox="0 0 22 22"><circle class="track" cx="11" cy="11" r="9"/><circle class="left" cx="11" cy="11" r="9" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>
+        ${leftText(p.left)}
+      </span>`;
+}
+const MORE_BTN = '<button class="more" data-act="menu" aria-label="خيارات"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button>';
+function sealedHtml(p) {
+  const cat = state.me.categories[p.cat] || '';
+  const maps = `https://www.google.com/maps/dir/?api=1&destination=${p.spot.lat},${p.spot.lng}&travelmode=walking`;
+  return `
+  <article class="card sealed" data-id="${p.id}" style="--c:${COLORS[p.cat] || COLORS.chat}">
+    <div class="card-head">
+      <span class="badge"><i></i>${cat}</span><span class="dot">•</span><span>${ago(p.ago)}</span>${MORE_BTN}
+    </div>
+    <div class="seal">
+      <div class="seal-ico">🔒</div>
+      <div><b>رسالة مقفولة</b><p>${esc(p.distText)}، امشي لهناك لتنفتحلك</p></div>
+    </div>
+    <div class="card-foot">
+      <a class="go-btn" href="${maps}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M3 11 21 3l-8 18-2-8-8-2Z"/></svg>خذني لهناك</a>
+      <span class="opens">&nbsp; ${opensText(p.opens)}</span>
+      <button class="share-btn" data-act="share" aria-label="شارك كصورة">${SHARE_ICON}</button>
+      ${lifeHtml(p)}
+    </div>
+  </article>`;
+}
+function cardHtml(p, { inThread = false } = {}) {
+  if (p.sealed) return sealedHtml(p);
   const cat = state.me.categories[p.cat] || '';
   return `
-  <article class="card" data-id="${p.id}" style="--c:${COLORS[p.cat] || COLORS.chat}">
+  <article class="card ${p.justOpened ? 'just-opened' : ''}" data-id="${p.id}" style="--c:${COLORS[p.cat] || COLORS.chat}">
     <div class="card-head">
       <span class="badge"><i></i>${cat}</span><span class="dot">•</span>
       <span>${esc(p.distText)}</span><span class="dot">•</span><span>${ago(p.ago)}</span>
       ${p.mine ? '<span class="mine-tag">رسالتك</span>' : ''}
-      <button class="more" data-act="menu" aria-label="خيارات"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button>
+      ${p.locked ? `<span class="unlocked-tag" title="${opensText(p.opens)}">🔓 ${p.mine ? ar(p.opens) : 'انفتحتلك'}</span>` : ''}
+      ${MORE_BTN}
     </div>
     <p class="card-text">${esc(p.text)}</p>
     ${p.image ? `<img class="card-img" src="${p.image}" alt="صورة مرفقة بالرسالة" loading="lazy">` : ''}
@@ -175,10 +214,8 @@ function cardHtml(p, { inThread = false } = {}) {
         <button class="down ${p.myVote === -1 ? 'on' : ''}" data-act="down" aria-label="مش مفيدة" ${p.mine ? 'disabled' : ''}><svg viewBox="0 0 24 24"><path d="m6 10 6 6 6-6"/></svg></button>
       </div>
       ${inThread ? '' : `<button class="reply-btn" data-act="thread"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12Z"/></svg>${p.replies ? ar(p.replies) : 'رد'}</button>`}
-      <span class="life" title="الوقت المتبقي قبل ما تختفي">
-        <svg viewBox="0 0 22 22"><circle class="track" cx="11" cy="11" r="9"/><circle class="left" cx="11" cy="11" r="9" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>
-        ${leftText(p.left)}
-      </span>
+      <button class="share-btn" data-act="share" aria-label="شارك كصورة">${SHARE_ICON}</button>
+      ${lifeHtml(p)}
     </div>
   </article>`;
 }
@@ -196,15 +233,28 @@ async function loadFeed({ silent = false } = {}) {
     const d = await api(`/api/feed?${q}`);
     state.posts = d.posts;
     renderFeed(d);
+    renderPulse(d.pulse);
+    const opened = d.posts.filter((p) => p.justOpened);
+    if (opened.length) {
+      toast(opened.length === 1 ? '🔓 وصلت! انفتحتلك رسالة مقفولة' : `🔓 وصلت! انفتحتلك ${ar(opened.length)} رسائل مقفولة`);
+      try { navigator.vibrate?.([60, 40, 120]); } catch {}
+      $(`#feed .card[data-id="${opened[0].id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   } catch (e) {
     if (!silent) $('#feed').innerHTML = `<div class="empty"><h3>ما قدرنا نحمّل الرسائل</h3><p>${esc(e.message)}</p><button class="ghost" id="retry">جرّب مرة ثانية</button></div>`;
   } finally {
     state.loading = false; $('#refreshBtn').classList.remove('spin');
   }
 }
+function renderPulse(n) {
+  const bar = $('#pulseBar');
+  if (!n) { bar.hidden = true; return; }
+  bar.innerHTML = `<span class="beat"></span><span><b>${ar(n)} ${n <= 10 ? 'أشخاص' : 'شخص'}</b> فاتحين هون حواليك هلأ</span>`;
+  bar.hidden = false;
+}
 function renderFeed(d) {
   if (!state.posts.length) {
-    const cat = state.cat ? `«${state.me.categories[state.cat]}» ` : '';
+    const cat = state.cat === 'locked' ? 'مقفولة ' : state.cat ? `«${state.me.categories[state.cat]}» ` : '';
     const hint = d.widerCount ? `في ${ar(d.widerCount)} رسالة أبعد شوي، كبّر النطاق لتشوفها.` : 'كن أول واحد بيكتب هون، واللي بيمرق من جنبك بيشوفها.';
     $('#feed').innerHTML = `<div class="empty"><div class="art">${EMPTY_ART}</div><h3>ما في رسائل ${cat}حواليك هلأ</h3><p>${hint}</p><button class="primary small" data-act="compose">ازرع أول رسالة</button></div>`;
     return;
@@ -221,6 +271,9 @@ document.addEventListener('click', async (e) => {
   const id = Number(card.dataset.id);
   const post = state.posts.find((x) => x.id === id) || (state.thread?.id === id ? state.thread : null);
   if (!post) return;
+  if (act === 'share') return openShare(post);
+  if (act === 'menu') return openMenu(post);
+  if (post.sealed) return toast('🔒 هاي رسالة مقفولة. امشي لمكانها لتنفتح');
   if (act === 'up' || act === 'down') return vote(post, act === 'up' ? 1 : -1);
   if (act === 'thread') return openThread(post);
   if (act === 'menu') return openMenu(post);
@@ -350,11 +403,12 @@ $('#composeSend').addEventListener('click', async () => {
     // a fresh GPS reading at the moment of sending, so the message lands exactly where you are
     let loc = state.loc;
     if (!loc.spot) { try { loc = await askGps(); state.loc = loc; } catch {} }
-    const r = await api('/api/posts', { method: 'POST', body: { text, cat: state.composeCat, ttlHours: state.composeTtl, lat: loc.lat, lng: loc.lng, image: state.image } });
+    const r = await api('/api/posts', { method: 'POST', body: { text, cat: state.composeCat, ttlHours: state.composeTtl, locked: $('#composeLock').checked, lat: loc.lat, lng: loc.lng, image: state.image } });
     $('#composeText').value = ''; $('#composeText').dispatchEvent(new Event('input'));
     $('#photoRemove').click();
     closeSheet();
-    toast('انزرعت 📍 وبتختفي بعد ' + hoursText(state.composeTtl));
+    toast(($('#composeLock').checked ? 'انقفلت 🔒 وما بيقرأها إلا اللي بيوصل هون. ' : 'انزرعت 📍 ') + 'بتختفي بعد ' + hoursText(state.composeTtl));
+    $('#composeLock').checked = false;
     askNotificationsOnce();
     state.posts.unshift(r.post);
     if (state.sort !== 'new' || (state.cat && state.cat !== r.post.cat)) loadFeed({ silent: true }); else renderFeed({ widerCount: 0 });
@@ -368,6 +422,7 @@ $('#composeSend').addEventListener('click', async () => {
 
 /* ---------- thread ---------- */
 async function openThread(post) {
+  if (post.sealed) return toast('🔒 هاي رسالة مقفولة. امشي لمكانها لتنفتح');
   state.thread = post;
   $('#threadPost').innerHTML = cardHtml(post, { inThread: true });
   $('#replies').innerHTML = '<div class="skeleton" style="height:60px"></div>';
@@ -409,6 +464,104 @@ $('#replyForm').addEventListener('submit', async (e) => {
   finally { input.disabled = false; input.focus(); }
 });
 
+/* ---------- share as an image (story size) ---------- */
+const HEX = { ask: '#2f6fdb', alert: '#e2531d', lost: '#8e44ad', offer: '#1e9e63', chat: '#7a8094' };
+const loadImg = (src) => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+function wrapLines(ctx, text, width, maxLines) {
+  const lines = [];
+  for (const para of String(text).split('\n')) {
+    let line = '';
+    for (const w of para.split(/\s+/).filter(Boolean)) {
+      const t = line ? `${line} ${w}` : w;
+      if (ctx.measureText(t).width <= width || !line) line = t; else { lines.push(line); line = w; }
+    }
+    lines.push(line);
+  }
+  if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…'; }
+  return lines;
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) return ctx.roundRect(x, y, w, h, r);
+  r = Math.min(r, w / 2, h / 2);   // older iPhones
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+async function makeCard(p) {
+  const W = 1080, H = 1920, F = '"Readex Pro", system-ui, sans-serif';
+  await Promise.all([document.fonts.load(`600 60px ${F}`), document.fonts.load(`400 40px ${F}`)]).catch(() => {});
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  x.direction = 'rtl';
+  // background
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#14213d'); g.addColorStop(1, '#0b1428');
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.strokeStyle = 'rgba(245,242,234,.06)'; x.lineWidth = 3;
+  for (let r = 140; r < 1500; r += 140) { x.beginPath(); x.arc(W / 2, 1020, r, 0, Math.PI * 2); x.stroke(); }
+  // logo
+  try { const logo = await loadImg('/wordmark-light.svg'); x.drawImage(logo, W / 2 - 170, 150, 340, 174); } catch {}
+  x.fillStyle = 'rgba(245,242,234,.7)'; x.font = `400 40px ${F}`; x.textAlign = 'center';
+  x.fillText('المكان بيحكي', W / 2, 380);
+  // card
+  const cx = 90, cw = W - 180, cy = 500;
+  const color = HEX[p.cat] || HEX.chat;
+  x.font = `600 62px ${F}`;
+  const lines = p.sealed ? [] : wrapLines(x, p.text, cw - 140, 9);
+  const ch = p.sealed ? 640 : Math.max(520, 300 + lines.length * 92);
+  x.fillStyle = '#f5f2ea'; roundRect(x, cx, cy, cw, ch, 48); x.fill();
+  x.fillStyle = p.sealed ? '#fca311' : color; roundRect(x, cx + cw - 14, cy + 40, 14, ch - 80, 7); x.fill();
+  // category pill
+  const cat = p.sealed ? '🔒 رسالة مقفولة' : (state.me.categories[p.cat] || '');
+  x.font = `600 38px ${F}`; x.textAlign = 'right';
+  const pw = x.measureText(cat).width + 70;
+  x.fillStyle = p.sealed ? 'rgba(252,163,17,.18)' : color + '22'; roundRect(x, cx + cw - 70 - pw, cy + 60, pw, 74, 37); x.fill();
+  x.fillStyle = p.sealed ? '#b36b00' : color; x.fillText(cat, cx + cw - 105, cy + 111);
+  x.fillStyle = '#14213d';
+  if (p.sealed) {
+    x.textAlign = 'center'; x.font = `400 150px ${F}`; x.fillText('🔒', W / 2, cy + 340);
+    x.font = `600 56px ${F}`; x.fillText('في رسالة مقفولة هون…', W / 2, cy + 470);
+    x.font = `400 42px ${F}`; x.fillStyle = '#6b7489'; x.fillText('ما بيقرأها إلا اللي بيوصل لمكانها', W / 2, cy + 550);
+  } else {
+    x.font = `600 62px ${F}`;
+    lines.forEach((l, i) => x.fillText(l, cx + cw - 70, cy + 250 + i * 92));
+  }
+  // where / when
+  x.textAlign = 'center'; x.fillStyle = 'rgba(245,242,234,.85)'; x.font = `400 40px ${F}`;
+  const where = state.loc?.spot ? `📍 ${state.loc.name}` : '📍 مزروعة بمكانها';
+  x.fillText(`${where}  ·  ⏳ بتختفي بعد ${leftText(p.left)}`, W / 2, cy + ch + 110);
+  // call to action
+  x.font = `600 54px ${F}`; x.fillStyle = '#f5f2ea';
+  x.fillText('شو بيحكوا حواليك إنت؟', W / 2, H - 330);
+  const bw = 560, bx = W / 2 - bw / 2, by = H - 270;
+  x.fillStyle = '#fca311'; roundRect(x, bx, by, bw, 120, 60); x.fill();
+  x.fillStyle = '#3d2600'; x.font = `700 52px ${F}`; x.fillText('حمّل هون', W / 2, by + 78);
+  x.direction = 'ltr'; x.fillStyle = 'rgba(245,242,234,.6)'; x.font = `400 36px ${F}`; x.fillText('talk.alshaheed.ps', W / 2, H - 70);
+  return c;
+}
+const SHARE_TEXT = 'شو بيحكوا حواليك؟ حمّل «هون» 📍 https://talk.alshaheed.ps';
+let shareFile = null, shareData = '';
+async function openShare(post) {
+  $('#shareImg').removeAttribute('src');
+  $('#shareNote').textContent = 'عم نجهّز الصورة…';
+  showSheet('#shareSheet');
+  try {
+    const c = await makeCard(post);
+    shareData = c.toDataURL('image/png');
+    $('#shareImg').src = shareData; $('#shareSave').href = shareData;
+    const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
+    shareFile = new File([blob], 'hon.png', { type: 'image/png' });
+    const canShare = window.HonNative?.shareImage || navigator.canShare?.({ files: [shareFile] });
+    $('#shareGo').hidden = !canShare;
+    $('#shareNote').textContent = canShare ? 'جاهزة لستوري إنستغرام أو واتساب.' : 'احفظ الصورة وانشرها بستوري إنستغرام أو واتساب.';
+  } catch { $('#shareNote').textContent = 'ما قدرنا نجهّز الصورة، جرّب مرة ثانية.'; }
+}
+$('#shareGo').addEventListener('click', async () => {
+  try {
+    if (window.HonNative?.shareImage) return window.HonNative.shareImage(shareData.split(',')[1], SHARE_TEXT);
+    await navigator.share({ files: [shareFile], text: SHARE_TEXT });
+  } catch (e) { if (e?.name !== 'AbortError') toast('ما زبطت المشاركة، احفظ الصورة بدلها'); }
+});
+
 /* ---------- me ---------- */
 $('#meBtn').addEventListener('click', async () => {
   try { state.me = { ...state.me, ...(await api('/api/me')) }; } catch {}
@@ -434,8 +587,8 @@ async function start() {
   registerPush();
   openFromLink();
   // keep the board fresh while the app is open
-  setInterval(() => { if (document.visibilityState === 'visible' && !openSheet) loadFeed({ silent: true }); }, 45000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadFeed({ silent: true }); });
+  setInterval(() => { if (document.visibilityState === 'visible' && !openSheet) refreshHere({ silent: true }); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshHere({ silent: true }); });
 }
 start();
 

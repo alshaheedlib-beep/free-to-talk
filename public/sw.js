@@ -1,5 +1,5 @@
 // Keeps the app shell available offline; messages always come fresh from the network.
-const CACHE = 'hon-v2';
+const CACHE = 'hon-v3';
 const SHELL = ['/', '/app.css', '/app.js', '/icon.svg', '/wordmark.svg', '/manifest.webmanifest'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {

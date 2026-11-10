@@ -42,6 +42,8 @@
     </div>
   </section>
 
+  <p class="pulse-bar" id="pulseBar" hidden></p>
+
   <nav class="filters" id="filters" aria-label="التصنيفات"></nav>
 
   <div class="sortbar">
@@ -92,6 +94,12 @@
     <span class="ttl-label">⏳ بتضل هون لمدة</span>
     <div class="ttl-opts" id="ttlOpts"></div>
   </div>
+  <label class="lock-toggle">
+    <input type="checkbox" id="composeLock">
+    <span class="lt-ico" aria-hidden="true">🔒</span>
+    <span class="lt-text"><b>رسالة مقفولة</b><small>ما بتنقرأ إلا للي بيوصل لهون بنفسه، زي كنز أو مفاجأة</small></span>
+    <span class="lt-switch" aria-hidden="true"></span>
+  </label>
   <ul class="promises">
     <li><span>📍</span><span>بتنزرع <b id="composePlace">بمكانك الحالي</b>، وبتضل هون حتى لو مشيت</span></li>
     <li><span>⏳</span><span>بتختفي لحالها بعد <b id="composeTtl">24 ساعة</b>، هي والردود</span></li>
@@ -113,6 +121,18 @@
     <input id="replyText" maxlength="200" placeholder="اكتب ردّك…" autocomplete="off">
     <button class="primary small" type="submit">رد</button>
   </form>
+</section>
+
+<section class="sheet" id="shareSheet" hidden aria-label="شارك">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <h2>شارك كصورة</h2>
+    <button class="icon-btn close" data-close aria-label="إغلاق"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <div class="share-preview"><img id="shareImg" alt="بطاقة المشاركة"></div>
+  <p class="muted" id="shareNote">جاهزة لستوري إنستغرام أو واتساب.</p>
+  <button class="primary" id="shareGo">شارك</button>
+  <a class="ghost share-save" id="shareSave" download="hon.png">حفظ الصورة</a>
 </section>
 
 <section class="sheet" id="menuSheet" hidden aria-label="خيارات">

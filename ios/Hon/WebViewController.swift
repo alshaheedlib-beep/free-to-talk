@@ -26,7 +26,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         config.allowsInlineMediaPlayback = true
         // Same bridge as Android: window.HonNative.deviceId() / platform()
         let bridge = """
-        window.HonNative = { deviceId: function () { return '\(Self.deviceHash())'; }, platform: function () { return 'ios'; } };
+        window.HonNative = { deviceId: function () { return '\(Self.deviceHash())'; }, platform: function () { return 'ios'; },
+          shareImage: function (data, text) { window.webkit.messageHandlers.honShare.postMessage({ data: data, text: text }); } };
         """
         config.userContentController.addUserScript(WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         // The page's navigator.geolocation is answered by the app itself, so iPhone asks for location
@@ -49,6 +50,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         """
         config.userContentController.addUserScript(WKUserScript(source: geo, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.userContentController.add(self, name: "honGeo")
+        config.userContentController.add(self, name: "honShare")
         config.applicationNameForUserAgent = "HonApp/iOS"
 
         web = WKWebView(frame: .zero, configuration: config)
@@ -77,6 +79,14 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     private var geoWaiting: [Int] = []
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "honShare", let body = message.body as? [String: Any],
+           let b64 = body["data"] as? String, let data = Data(base64Encoded: b64), let image = UIImage(data: data) {
+            let text = body["text"] as? String ?? ""
+            let sheet = UIActivityViewController(activityItems: [image, text], applicationActivities: nil)
+            sheet.popoverPresentationController?.sourceView = view
+            present(sheet, animated: true)
+            return
+        }
         guard message.name == "honGeo", let id = message.body as? Int else { return }
         geoWaiting.append(id)
         switch location.authorizationStatus {

@@ -15,6 +15,8 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
 const HOUR = 3600_000, DAY = 24 * HOUR;
 const KEEP_EXPIRED_DAYS = 30;          // hidden copy kept for serious reports, then purged
 const MAX_POST = 280, MAX_REPLY = 200;
+const UNLOCK_M = 150;          // how close you must get to open a locked message (posts sit on a ~100 m grid)
+const PULSE_WINDOW = 15 * 60_000, PULSE_MIN = 5;   // "N people around you now" — only shown from 5 people up
 
 export const CATEGORIES = {
   ask: 'سؤال', alert: 'تنبيه', lost: 'مفقودات', offer: 'عرض', chat: 'دردشة',
@@ -24,6 +26,18 @@ export const TEST_SPOTS = [
   { id: 'center', name: 'وسط الخليل', lat: 31.5297, lng: 35.0998 },
   { id: 'old', name: 'البلدة القديمة', lat: 31.5247, lng: 35.1107 },
 ];
+
+/* ---------- pulse: how many people opened هون around here lately ---------- */
+// Kept only in memory, on the ~100 m grid, for 15 minutes — never stored, never shown per person.
+const presence = new Map();   // user id → { lat, lng, t }
+function pulse(me, lat, lng, km) {
+  const t = now();
+  presence.set(me.id, { lat: roundCoord(lat), lng: roundCoord(lng), t });
+  let n = 0;
+  for (const v of presence.values()) if (t - v.t < PULSE_WINDOW && distanceM(lat, lng, v.lat, v.lng) <= km * 1000) n++;
+  return n >= PULSE_MIN ? n : 0;
+}
+setInterval(() => { const t = now(); for (const [k, v] of presence) if (t - v.t > PULSE_WINDOW) presence.delete(k); }, 5 * 60_000).unref();
 
 const TTL_STEPS = [1, 3, 6, 12, 24, 48, 72];
 function ttlChoices(S) {
@@ -98,11 +112,29 @@ function recomputeKarma(userId) {
   run('UPDATE users SET karma = ? WHERE id = ?', r.k, userId);
 }
 
-function postView(p, me, lat, lng) {
+/** Can this person read the message? Locked ones open only after you've been within UNLOCK_M of the spot. */
+function canRead(p, me) {
+  return !p.locked || p.user_id === me.id || !!get('SELECT 1 AS x FROM unlocks WHERE post_id = ? AND user_id = ?', p.id, me.id);
+}
+/** If you're standing at a locked message right now, it opens for you (and stays open). Returns true if it just opened. */
+function tryUnlock(p, me, lat, lng) {
+  if (!p.locked || p.user_id === me.id || p.opened || !validCoords(lat, lng)) return false;
+  if (distanceM(lat, lng, p.lat, p.lng) > UNLOCK_M) return false;
+  run('INSERT OR IGNORE INTO unlocks(post_id, user_id, created_at) VALUES (?, ?, ?)', p.id, me.id, now());
+  p.opened = 1; p.opens = (p.opens || 0) + 1;
+  return true;
+}
+
+function postView(p, me, lat, lng, justOpened = false) {
   const dist = validCoords(lat, lng) ? distanceM(lat, lng, p.lat, p.lng) : null;
+  const sealed = !!p.locked && p.user_id !== me.id && !p.opened;
   return {
-    id: p.id, cat: p.cat, text: p.text,
-    image: p.image ? `/u/${p.image}` : null,
+    id: p.id, cat: p.cat,
+    text: sealed ? '' : p.text,
+    image: !sealed && p.image ? `/u/${p.image}` : null,
+    locked: !!p.locked, sealed, justOpened, opens: p.opens || 0,
+    // a sealed message shows only roughly where it is, so people can walk there
+    spot: sealed ? { lat: p.lat, lng: p.lng } : undefined,
     score: p.up - p.down,
     myVote: p.my_vote || 0,
     replies: p.reply_count || 0,
@@ -141,16 +173,18 @@ async function api(req, res, url, me) {
     const rows = all(`
       SELECT p.*, v.v AS my_vote,
         (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.status = 'live'
-           AND r.user_id NOT IN (SELECT blocked FROM blocks WHERE blocker = ?)) AS reply_count
+           AND r.user_id NOT IN (SELECT blocked FROM blocks WHERE blocker = ?)) AS reply_count,
+        (SELECT 1 FROM unlocks u WHERE u.post_id = p.id AND u.user_id = ?) AS opened,
+        (SELECT COUNT(*) FROM unlocks u WHERE u.post_id = p.id) AS opens
       FROM posts p
       LEFT JOIN votes v ON v.post_id = p.id AND v.user_id = ?
       WHERE p.status = 'live' AND p.expires_at > ?
         AND p.lat BETWEEN ? AND ? AND p.lng BETWEEN ? AND ?
         AND p.user_id NOT IN (SELECT blocked FROM blocks WHERE blocker = ?)
-        ${cat && CATEGORIES[cat] ? 'AND p.cat = ?' : ''}
+        ${cat === 'locked' ? 'AND p.locked = 1' : cat && CATEGORIES[cat] ? 'AND p.cat = ?' : ''}
       ORDER BY p.created_at DESC LIMIT 300`,
-      me.id, me.id, now(), b.minLat, b.maxLat, b.minLng, b.maxLng, me.id, ...(cat && CATEGORIES[cat] ? [cat] : []));
-    let posts = rows.map((r) => postView(r, me, lat, lng)).filter((x) => x.dist <= km * 1000 + 100);
+      me.id, me.id, me.id, now(), b.minLat, b.maxLat, b.minLng, b.maxLng, me.id, ...(cat && CATEGORIES[cat] ? [cat] : []));
+    let posts = rows.map((r) => postView(r, me, lat, lng, tryUnlock(r, me, lat, lng))).filter((x) => x.dist <= km * 1000 + 100);
     if (sort === 'near') posts.sort((a, b2) => a.dist - b2.dist);
     else if (sort === 'top') posts.sort((a, b2) => (b2.score + b2.replies) - (a.score + a.replies));
     posts = posts.slice(0, 150);
@@ -160,7 +194,7 @@ async function api(req, res, url, me) {
       return get(`SELECT COUNT(*) AS n FROM posts WHERE status='live' AND expires_at > ? AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?`,
         now(), w.minLat, w.maxLat, w.minLng, w.maxLng).n;
     })();
-    return sendJson(res, 200, { posts, radiusKm: km, widerCount: wider });
+    return sendJson(res, 200, { posts, radiusKm: km, widerCount: wider, pulse: pulse(me, lat, lng, km) });
   }
 
   if (method === 'POST' && p === '/api/posts') {
@@ -187,8 +221,8 @@ async function api(req, res, url, me) {
     // The writer picks how long the message stays (1h … the admin's maximum, 24h by default).
     const choices = ttlChoices(S);
     const ttl = (choices.includes(int(body.ttlHours)) ? int(body.ttlHours) : choices[choices.length - 1]) * HOUR;
-    const r = run(`INSERT INTO posts(user_id, cat, text, image, lat, lng, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      me.id, cat, text, image, roundCoord(lat), roundCoord(lng), t, t + ttl);
+    const r = run(`INSERT INTO posts(user_id, cat, text, image, lat, lng, created_at, expires_at, locked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      me.id, cat, text, image, roundCoord(lat), roundCoord(lng), t, t + ttl, body.locked ? 1 : 0);
     const row = get('SELECT * FROM posts WHERE id = ?', Number(r.lastInsertRowid));
     return sendJson(res, 201, { post: postView(row, me, lat, lng) });
   }
@@ -201,9 +235,11 @@ async function api(req, res, url, me) {
     if (!visible) return fail(res, 404, 'الرسالة اختفت');
 
     if (method === 'GET' && !action) {
-      const row = get(`SELECT p.*, v.v AS my_vote, (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.status = 'live') AS reply_count
-        FROM posts p LEFT JOIN votes v ON v.post_id = p.id AND v.user_id = ? WHERE p.id = ?`, me.id, id);
-      return sendJson(res, 200, { post: postView(row, me, num(url.searchParams.get('lat')), num(url.searchParams.get('lng'))) });
+      const row = get(`SELECT p.*, v.v AS my_vote, (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id AND r.status = 'live') AS reply_count,
+        (SELECT 1 FROM unlocks u WHERE u.post_id = p.id AND u.user_id = ?) AS opened, (SELECT COUNT(*) FROM unlocks u WHERE u.post_id = p.id) AS opens
+        FROM posts p LEFT JOIN votes v ON v.post_id = p.id AND v.user_id = ? WHERE p.id = ?`, me.id, me.id, id);
+      const la = num(url.searchParams.get('lat')), ln = num(url.searchParams.get('lng'));
+      return sendJson(res, 200, { post: postView(row, me, la, ln, tryUnlock(row, me, la, ln)) });
     }
 
     if (method === 'DELETE' && !action) {
@@ -213,6 +249,9 @@ async function api(req, res, url, me) {
       recomputeKarma(me.id);
       return sendJson(res, 200, { ok: true });
     }
+
+    if ((action === '/replies' || action === '/vote') && !canRead(post, me))
+      return fail(res, 403, 'هاي رسالة مقفولة 🔒 امشي لمكانها لتنفتح');
 
     if (method === 'GET' && action === '/replies') {
       const rows = all(`SELECT * FROM replies WHERE post_id = ? AND status = 'live'
@@ -329,11 +368,11 @@ async function adminApi(req, res, url) {
       pending: get(`SELECT COUNT(*) n FROM posts WHERE status='hidden'`).n + get(`SELECT COUNT(*) n FROM replies WHERE status='hidden'`).n,
     };
     const queue = all(`
-      SELECT 'post' AS kind, p.id, p.text, p.image, p.cat, p.user_id, p.up, p.down, p.reports, p.status, p.created_at, p.expires_at, NULL AS post_id,
+      SELECT 'post' AS kind, p.id, p.text, p.image, p.cat, p.locked, p.user_id, p.up, p.down, p.reports, p.status, p.created_at, p.expires_at, NULL AS post_id,
              (SELECT GROUP_CONCAT(reason) FROM reports WHERE kind='post' AND target_id=p.id) AS reasons
       FROM posts p WHERE p.status = 'hidden' OR (p.reports > 0 AND p.status = 'live')
       UNION ALL
-      SELECT 'reply', r.id, r.text, NULL, NULL, r.user_id, 0, 0, r.reports, r.status, r.created_at, NULL, r.post_id,
+      SELECT 'reply', r.id, r.text, NULL, NULL, 0, r.user_id, 0, 0, r.reports, r.status, r.created_at, NULL, r.post_id,
              (SELECT GROUP_CONCAT(reason) FROM reports WHERE kind='reply' AND target_id=r.id)
       FROM replies r WHERE r.status = 'hidden' OR (r.reports > 0 AND r.status = 'live')
       ORDER BY created_at DESC LIMIT 200`).map((x) => ({
@@ -341,7 +380,8 @@ async function adminApi(req, res, url) {
         author: get('SELECT karma, banned FROM users WHERE id = ?', x.user_id),
         reasons: (x.reasons || '').split(',').filter(Boolean).map((r) => REASONS[r] || r),
       }));
-    const recent = all(`SELECT id, text, cat, image, up, down, reports, status, user_id, created_at, expires_at FROM posts ORDER BY id DESC LIMIT 60`)
+    const recent = all(`SELECT id, text, cat, image, locked, up, down, reports, status, user_id, created_at, expires_at,
+      (SELECT COUNT(*) FROM unlocks u WHERE u.post_id = posts.id) AS opens FROM posts ORDER BY id DESC LIMIT 60`)
       .map((x) => ({ ...x, image: x.image ? `/u/${x.image}` : null }));
     return sendJson(res, 200, { stats, queue, recent, settings: getSettings(), reasons: REASONS, categories: CATEGORIES });
   }
