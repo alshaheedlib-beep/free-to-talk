@@ -125,11 +125,22 @@ $('#spots').addEventListener('click', (e) => {
 });
 
 /* ---------- filters ---------- */
+// One fixed row of icon tabs — everything visible at once, no sideways scrolling.
+const CAT_ICONS = {
+  '': '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/>',
+  ask: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.6"/><circle cx="12" cy="16.8" r=".7" fill="currentColor"/>',
+  alert: '<path d="M12 3.5 2.5 20h19L12 3.5Z"/><path d="M12 10v4"/><circle cx="12" cy="16.8" r=".7" fill="currentColor"/>',
+  lost: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+  offer: '<path d="M3.5 12.5V4h8.5l9 9-8.5 8.5-9-9Z"/><circle cx="8" cy="8.5" r="1.4"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12Z"/>',
+  locked: '<rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/>',
+};
 function renderFilters() {
   const cats = state.me.categories;
-  $('#filters').innerHTML = `<button class="chip ${state.cat ? '' : 'on'}" data-cat="">الكل</button>` +
-    Object.entries(cats).map(([k, v]) => `<button class="chip ${state.cat === k ? 'on' : ''}" data-cat="${k}" style="--c:${COLORS[k]}"><i></i>${v}</button>`).join('') +
-    `<button class="chip lockchip ${state.cat === 'locked' ? 'on' : ''}" data-cat="locked" style="--c:var(--ink)">🔒 مقفولة</button>`;
+  const tabs = [['', 'الكل', 'var(--ink)'], ...Object.entries(cats).map(([k, v]) => [k, v, COLORS[k]]), ['locked', 'مقفولة', 'var(--accent)']];
+  $('#filters').innerHTML = tabs.map(([k, label, color]) =>
+    `<button class="ftab ${state.cat === k ? 'on' : ''}" data-cat="${k}" style="--c:${color}" aria-pressed="${state.cat === k}">
+      <span class="ficon"><svg viewBox="0 0 24 24">${CAT_ICONS[k] || CAT_ICONS.chat}</svg></span><span class="flabel">${label}</span></button>`).join('');
   $('#composeCats').innerHTML = Object.entries(cats).map(([k, v]) =>
     `<button class="chip ${state.composeCat === k ? 'on' : ''}" data-ccat="${k}" style="--c:${COLORS[k]}"><i></i>${v}</button>`).join('');
 }

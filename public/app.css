@@ -63,8 +63,16 @@ h1 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; di
 .radius button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 
 /* filters */
-.filters { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px; scrollbar-width: none; }
-.filters::-webkit-scrollbar { display: none; }
+.filters { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 8px 10px 4px; }
+.ftab { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0; min-width: 0; color: var(--muted); }
+.ficon { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; color: var(--c);
+  background: color-mix(in srgb, var(--c) 11%, var(--card)); border: 1px solid color-mix(in srgb, var(--c) 18%, transparent); transition: transform .15s, background .15s; }
+.ficon svg { width: 21px; height: 21px; }
+.flabel { font-size: .72rem; line-height: 1.2; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ftab.on .ficon { background: var(--c); color: var(--card); border-color: transparent; transform: translateY(-1px); box-shadow: 0 6px 14px -8px var(--c); }
+.ftab.on .flabel { color: var(--ink); font-weight: 600; }
+.ftab:active .ficon { transform: scale(.94); }
+@media (max-width: 350px) { .ficon { width: 36px; height: 36px; border-radius: 12px; } .flabel { font-size: .66rem; } }
 .chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: .88rem; color: var(--ink-2); }
 .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .chip.on { background: var(--c, var(--ink)); border-color: transparent; color: #fff; }
@@ -115,7 +123,7 @@ h1 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; di
 @keyframes sk { to { background-position: -200% 0; } }
 
 /* FAB */
-.fab { position: fixed; z-index: 10; bottom: calc(20px + var(--safe-b)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 1rem; box-shadow: 0 10px 30px -8px rgba(20,33,61,.55); }
+.fab { white-space: nowrap; position: fixed; z-index: 10; bottom: calc(20px + var(--safe-b)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 15px 26px; border-radius: 999px; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 1rem; box-shadow: 0 10px 30px -8px rgba(20,33,61,.55); }
 .fab svg { color: var(--accent); }
 .fab:active { transform: translateX(-50%) scale(.97); }
 
