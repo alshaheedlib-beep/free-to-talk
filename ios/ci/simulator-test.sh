@@ -13,8 +13,10 @@ xcrun simctl install "$UDID" ios/build/Build/Products/Release-iphonesimulator/Ho
 xcrun simctl privacy "$UDID" grant location-always ps.alshaheed.hon || true
 xcrun simctl location "$UDID" set 31.5336,35.0972 || true
 xcrun simctl launch "$UDID" ps.alshaheed.hon
-sleep 35
+# GitHub's Macs can be slow: give the page time to load before judging it
+sleep 60
 xcrun simctl io "$UDID" screenshot shots/ios-1-home.png
-sleep 10
+sleep 60
 xcrun simctl io "$UDID" screenshot shots/ios-2-later.png
+xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "Hon"' --style compact 2>/dev/null | tail -40 || true
 ls -la shots
