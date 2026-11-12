@@ -217,6 +217,25 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String platform() { return "android"; }
 
+        /** Is the phone's Location (GPS) switch on? */
+        @JavascriptInterface
+        public boolean locationOn() {
+            android.location.LocationManager lm = getSystemService(android.location.LocationManager.class);
+            if (lm == null) return true;
+            if (Build.VERSION.SDK_INT >= 28) return lm.isLocationEnabled();
+            return lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) || lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER);
+        }
+
+        @JavascriptInterface
+        public void openLocationSettings() {
+            runOnUiThread(() -> { try { startActivity(new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)); } catch (Exception ignored) { } });
+        }
+
+        @JavascriptInterface
+        public void openAppSettings() {
+            runOnUiThread(() -> { try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", getPackageName(), null))); } catch (Exception ignored) { } });
+        }
+
         /** Asked by the page right after your first message/reply, not at launch (so it never clashes with the location prompt). */
         @JavascriptInterface
         public void requestNotifications() {

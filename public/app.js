@@ -78,41 +78,57 @@ function setLocation(loc) {
   if (loc.spot) store.set('ftt.spot', loc.spot); else store.set('ftt.spot', null);
   loadFeed();
 }
-function askGps() {
+function gpsOnce(high, timeout) {
   return new Promise((resolve, reject) => {
-    if (!window.isSecureContext || !navigator.geolocation) return reject(new Error('insecure'));
     // never leave the user stuck on "بنحدد موقعك…" if the phone doesn't answer
-    const guard = setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 3 })), 20000);
+    const guard = setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 3 })), timeout + 3000);
     navigator.geolocation.getCurrentPosition(
       (p) => { clearTimeout(guard); resolve({ lat: p.coords.latitude, lng: p.coords.longitude, name: 'حواليك', spot: null }); },
-      (e) => { clearTimeout(guard); reject(e); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 15000 });
+      (e) => { clearTimeout(guard); reject(e); }, { enableHighAccuracy: high, timeout, maximumAge: 15000 });
   });
+}
+// Precise GPS first; indoors that can be slow, so fall back to the quicker Wi-Fi/network position.
+async function askGps() {
+  if (!window.isSecureContext || !navigator.geolocation) throw Object.assign(new Error('insecure'), { code: 0 });
+  try { return await gpsOnce(true, 10000); }
+  catch (e) { if (e.code === 1) throw e; return gpsOnce(false, 10000); }
 }
 // After your first message or reply, the phone app asks once whether you want reply notifications.
 function askNotificationsOnce() {
   if (store.get('ftt.askedPush')) return;
   try { window.HonNative?.requestNotifications?.(); store.set('ftt.askedPush', true); setTimeout(registerPush, 4000); } catch {}
 }
-async function locate({ manual = false } = {}) {
-  const saved = store.get('ftt.spot');
-  if (!manual && saved && state.me.testMode) {
-    const s = state.me.testSpots.find((x) => x.id === saved);
-    if (s) return setLocation({ lat: s.lat, lng: s.lng, name: s.name, spot: s.id });
-  }
+// Your real position always comes first. A test spot is used only when GPS isn't available.
+async function locate() {
+  $('#placeName').textContent = 'بنحدد موقعك…';
   try {
     setLocation(await askGps());
   } catch (e) {
-    openPlaceSheet(e);
+    const saved = store.get('ftt.spot');
+    const s = saved && state.me.testMode && state.me.testSpots.find((x) => x.id === saved);
+    if (s && e.code !== 1) { setLocation({ lat: s.lat, lng: s.lng, name: s.name, spot: s.id }); toast(`ما قدرنا نوصل للـ GPS، فتحنا «${s.name}»`); }
+    else openPlaceSheet(e);
   }
 }
 function openPlaceSheet(err) {
   const secure = window.isSecureContext && navigator.geolocation;
   $('#useGps').hidden = !secure;
+  const app = window.HonNative?.platform?.();      // 'android' | 'ios' | undefined (browser)
+  let gpsOff = false; try { gpsOff = app === 'android' && window.HonNative.locationOn && !window.HonNative.locationOn(); } catch {}
   let note = 'التطبيق بيعرضلك اللي حواليك بس، فبنحتاج موقعك. ما بنحفظ موقعك الدقيق أبداً.';
+  let fix = '';   // which settings button to show
   if (!secure) note = 'الموقع الحقيقي بيشتغل لما يكون الرابط آمن (https). لهلأ جرّب من الأماكن التجريبية.';
-  else if (err && err.code === 1) note = 'رفضت مشاركة الموقع. فعّلها من إعدادات المتصفح وجرّب مرة ثانية.';
-  else if (err && err.code === 3) note = 'الموقع اتأخر. تأكد إن الـ GPS شغّال وجرّب مرة ثانية.';
+  else if (gpsOff || (err && err.code === 2)) { note = 'خدمة الموقع (GPS) طافية بالجوال. شغّلها وارجع اضغط «استخدم موقعي الحقيقي».'; fix = 'gps'; }
+  else if (err && err.code === 1) {
+    note = app === 'android' ? 'التطبيق ممنوع من الموقع. اضغط «افتح الإعدادات» ← الأذونات ← الموقع ← «السماح أثناء استخدام التطبيق».'
+      : app === 'ios' ? 'التطبيق ممنوع من الموقع. افتح الإعدادات ← هون ← الموقع ← «أثناء استخدام التطبيق».'
+      : 'المتصفح ممنوع من الموقع. اضغط على 🔒 جنب الرابط فوق، واسمح بالموقع، وجرّب مرة ثانية.';
+    fix = 'app';
+  } else if (err && err.code === 3) note = 'الموقع اتأخر. جرّب جنب شباك أو شغّل الواي فاي، واضغط «استخدم موقعي الحقيقي».';
   $('#placeNote').textContent = note;
+  const canOpen = app === 'android' && (fix === 'gps' ? window.HonNative.openLocationSettings : window.HonNative?.openAppSettings);
+  $('#openSettings').hidden = !(fix && canOpen);
+  $('#openSettings').dataset.fix = fix;
   const spots = state.me.testSpots;
   $('#spotsBox').hidden = !spots.length;
   $('#spots').innerHTML = spots.map((s) => `<button class="spot ${state.loc?.spot === s.id ? 'on' : ''}" data-spot="${s.id}">${esc(s.name)}</button>`).join('');
@@ -120,6 +136,13 @@ function openPlaceSheet(err) {
   showSheet('#placeSheet');
 }
 $('#placeChip').addEventListener('click', () => openPlaceSheet());
+$('#openSettings').addEventListener('click', (e) => {
+  try { if (e.currentTarget.dataset.fix === 'gps') window.HonNative.openLocationSettings(); else window.HonNative.openAppSettings(); } catch {}
+});
+// coming back from the phone's settings → try again by itself
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && openSheet === '#placeSheet' && !$('#openSettings').hidden) $('#useGps').click();
+});
 $('#useGps').addEventListener('click', async () => {
   $('#useGps').disabled = true;
   try { setLocation(await askGps()); closeSheet(); }
