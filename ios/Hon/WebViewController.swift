@@ -13,6 +13,15 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     private static let paper = UIColor(red: 0xf5/255, green: 0xf2/255, blue: 0xea/255, alpha: 1)
 
     private var web: WKWebView!
+    private var splashView: UIView?
+
+    private func revealPage() {
+        guard let sv = splashView else { return }
+        splashView = nil
+        UIView.animate(withDuration: 0.22, animations: { sv.alpha = 0 }, completion: { _ in sv.removeFromSuperview() })
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { revealPage() }
     private let location = CLLocationManager()
 
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
@@ -70,6 +79,28 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
 
         location.delegate = self
         location.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+
+        // Navy splash with the logo + spinner until the page has painted — never a white screen.
+        let splash = UIView()
+        splash.backgroundColor = Self.navy
+        splash.translatesAutoresizingMaskIntoConstraints = false
+        let logo = UIImageView(image: UIImage(named: "LaunchLogo"))
+        logo.contentMode = .scaleAspectFit
+        logo.translatesAutoresizingMaskIntoConstraints = false
+        let spin = UIActivityIndicatorView(style: .medium)
+        spin.color = UIColor(red: 0xfc/255, green: 0xa3/255, blue: 0x11/255, alpha: 1)
+        spin.startAnimating()
+        spin.translatesAutoresizingMaskIntoConstraints = false
+        splash.addSubview(logo); splash.addSubview(spin); view.addSubview(splash)
+        NSLayoutConstraint.activate([
+            splash.topAnchor.constraint(equalTo: view.topAnchor), splash.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            splash.leadingAnchor.constraint(equalTo: view.leadingAnchor), splash.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            logo.centerXAnchor.constraint(equalTo: splash.centerXAnchor), logo.centerYAnchor.constraint(equalTo: splash.centerYAnchor),
+            logo.widthAnchor.constraint(equalToConstant: 120), logo.heightAnchor.constraint(equalToConstant: 120),
+            spin.centerXAnchor.constraint(equalTo: splash.centerXAnchor), spin.topAnchor.constraint(equalTo: logo.bottomAnchor, constant: 8),
+        ])
+        splashView = splash
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in self?.revealPage() }
 
         web.load(URLRequest(url: Self.appURL))
     }
@@ -146,6 +177,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        revealPage()
         showOffline()
     }
 

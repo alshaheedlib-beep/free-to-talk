@@ -1,3 +1,6 @@
+// Fonts load in the background, so the first screen never waits on Google.
+(() => { const l = document.createElement('link'); l.rel = 'stylesheet';
+  l.href = 'https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&display=swap'; document.head.appendChild(l); })();
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const ar = (n) => Number(n).toLocaleString('ar-EG');
@@ -18,12 +21,15 @@ const DEVICE = (() => { try { return window.HonNative?.deviceId?.() || ''; } cat
 async function api(path, opts = {}) {
   const headers = opts.body ? { 'Content-Type': 'application/json' } : {};
   if (DEVICE) headers['X-Hon-Device'] = DEVICE;
-  const res = await fetch(path, {
+  let res;
+  try {
+  res = await fetch(path, {
     method: opts.method || 'GET',
     headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
     credentials: 'same-origin',
   });
+  } catch { throw Object.assign(new Error('ما في اتصال بالإنترنت'), { status: 0 }); }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(data.error || 'صار خطأ، جرّب مرة ثانية'), { status: res.status });
   return data;
@@ -53,6 +59,8 @@ function showSheet(id) {
   openSheet = id; $(id).hidden = false; $('#scrim').hidden = false;
 }
 function closeSheet() {
+  // closing the welcome in any way counts as "seen" — then find where you are
+  if (openSheet === '#welcomeSheet') { store.set('ftt.welcomed', true); if (!state.loc) setTimeout(locate, 0); }
   if (openSheet) $(openSheet).hidden = true;
   openSheet = null; $('#scrim').hidden = true;
 }
@@ -245,6 +253,9 @@ async function loadFeed({ silent = false } = {}) {
     state.posts = d.posts;
     renderFeed(d);
     renderPulse(d.pulse);
+    $('#cachedNote')?.remove();
+    // Keep the latest board on the phone, so next time the app opens with it instantly.
+    if (!state.cat) saveFeedCache();
     const opened = d.posts.filter((p) => p.justOpened);
     if (opened.length) {
       toast(opened.length === 1 ? '🔓 وصلت! انفتحتلك رسالة مقفولة' : `🔓 وصلت! انفتحتلك ${ar(opened.length)} رسائل مقفولة`);
@@ -252,10 +263,17 @@ async function loadFeed({ silent = false } = {}) {
       $(`#feed .card[data-id="${opened[0].id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   } catch (e) {
-    if (!silent) $('#feed').innerHTML = `<div class="empty"><h3>ما قدرنا نحمّل الرسائل</h3><p>${esc(e.message)}</p><button class="ghost" id="retry">جرّب مرة ثانية</button></div>`;
+    // keep whatever is on screen (e.g. the saved board) instead of replacing it with an error
+    if (state.posts.length) {
+      if (!$('#cachedNote')) $('#feed').insertAdjacentHTML('afterbegin', '<p class="cached-note" id="cachedNote"></p>');
+      $('#cachedNote').textContent = e.status === 0 ? 'ما في نت هلأ · هاي آخر رسائل شفتها' : e.message;
+    } else if (!silent) $('#feed').innerHTML = `<div class="empty"><h3>ما قدرنا نحمّل الرسائل</h3><p>${esc(e.message)}</p><button class="ghost" id="retry">جرّب مرة ثانية</button></div>`;
   } finally {
     state.loading = false; $('#refreshBtn').classList.remove('spin');
   }
+}
+function saveFeedCache() {
+  store.set('ftt.feed', { t: Date.now(), name: state.loc?.name, posts: state.posts.slice(0, 40).map((p) => ({ ...p, justOpened: false })) });
 }
 function renderPulse(n) {
   const bar = $('#pulseBar');
@@ -422,6 +440,7 @@ $('#composeSend').addEventListener('click', async () => {
     $('#composeLock').checked = false;
     askNotificationsOnce();
     state.posts.unshift(r.post);
+    if (!state.cat) saveFeedCache();
     if (state.sort !== 'new' || (state.cat && state.cat !== r.post.cat)) loadFeed({ silent: true }); else renderFeed({ widerCount: 0 });
     state.me.livePosts++;
   } catch (e) {
@@ -578,23 +597,100 @@ $('#meBtn').addEventListener('click', async () => {
   try { state.me = { ...state.me, ...(await api('/api/me')) }; } catch {}
   $('#meKarma').textContent = ar(state.me.karma);
   $('#mePosts').textContent = ar(state.me.livePosts);
+  renderMyCode();
   showSheet('#meSheet');
+});
+
+/* ---------- your secret code: the only way to be "you" on another phone ---------- */
+function renderMyCode() {
+  const code = store.get('ftt.code');
+  $('#meCode').textContent = code || '••••-••••-••••';
+  $('#meSheet .copy-btn').hidden = !code;
+  $('#meCodeNote').textContent = code ? 'ما حدا بيشوفه غيرك. لا تعطيه لحدا.'
+    : 'الرمز مش محفوظ على هالجوال. إذا ضيّعته، اعمل رمز جديد (القديم بيبطل).';
+}
+async function getCode(renew = false) {
+  const d = await api('/api/account/code', { method: 'POST', body: { renew } });
+  if (d.code) store.set('ftt.code', d.code);
+  return d.code || store.get('ftt.code') || null;
+}
+$('#renewCode').addEventListener('click', async () => {
+  if (store.get('ftt.code') && !confirm('رح ينعمل رمز جديد والقديم بيبطل. متأكد؟')) return;
+  try { await getCode(true); renderMyCode(); toast('🔑 انعمل رمز جديد، احفظه'); } catch (e) { toast(e.message); }
+});
+function copyText(text, btn) {
+  const done = () => { if (btn) { btn.textContent = 'انسخ ✓'; btn.classList.add('done'); setTimeout(() => { btn.textContent = 'نسخ'; btn.classList.remove('done'); }, 1800); } };
+  const fallback = () => { const t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select(); try { document.execCommand('copy'); done(); } catch {} t.remove(); };
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fallback); else fallback();
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-copy]');
+  if (b) { const t = $(b.dataset.copy).textContent; if (!t.includes('•')) copyText(t, b); return; }
+  if (e.target.closest('[data-open-restore]')) { $('#restoreErr').hidden = true; $('#restoreInput').value = ''; showSheet('#restoreSheet'); setTimeout(() => $('#restoreInput').focus(), 250); }
+});
+
+// First time on this phone: say hello and hand over the code.
+async function openWelcome() {
+  showSheet('#welcomeSheet');
+  try {
+    const code = await getCode(false);
+    $('#welcomeCode').textContent = code || 'إلك رمز من قبل';
+    $('#welcomeSheet .copy-btn').hidden = !code;
+  } catch { $('#welcomeCode').textContent = '—'; }
+}
+$('#welcomeDone').addEventListener('click', () => { store.set('ftt.welcomed', true); closeSheet(); if (!state.loc) locate(); });
+
+// Typing the code: capitals + dashes as you go.
+$('#restoreInput').addEventListener('input', (e) => {
+  const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+  e.target.value = raw.match(/.{1,4}/g)?.join('-') || '';
+});
+$('#restoreGo').addEventListener('click', async () => {
+  const code = $('#restoreInput').value; const err = $('#restoreErr'); err.hidden = true;
+  if (code.replace(/-/g, '').length !== 12) { err.textContent = 'الرمز ١٢ حرف ورقم، زي: ABCD-2345-WXYZ'; err.hidden = false; return; }
+  const btn = $('#restoreGo'); btn.disabled = true;
+  try {
+    await api('/api/account/restore', { method: 'POST', body: { code } });
+    store.set('ftt.code', code); store.set('ftt.welcomed', true); store.set('ftt.push', null); store.set('ftt.feed', null); store.set('ftt.me', null);
+    toast('✅ رجع حسابك'); setTimeout(() => location.reload(), 700);
+  } catch (e) { err.textContent = e.message; err.hidden = false; }
+  finally { btn.disabled = false; }
 });
 $('#clearBlocks').addEventListener('click', async () => {
   try { await api('/api/blocks/clear', { method: 'POST' }); closeSheet(); toast('ألغينا الحظر'); loadFeed({ silent: true }); } catch (e) { toast(e.message); }
 });
 
 /* ---------- start ---------- */
+// Show the last board this phone saw right away (older than 12 h is dropped), then refresh it.
+function showCachedFeed() {
+  const c = store.get('ftt.feed');
+  if (!c || !Array.isArray(c.posts) || Date.now() - c.t > 12 * 3600_000) return false;
+  const gone = Math.round((Date.now() - c.t) / 60000);
+  const posts = c.posts.map((p) => ({ ...p, ago: p.ago + gone, left: p.left - gone })).filter((p) => p.left > 0);
+  if (!posts.length) return false;
+  state.posts = posts;
+  if (c.name) $('#placeName').textContent = c.name;
+  renderFeed({ widerCount: 0 });
+  $('#feed').insertAdjacentHTML('afterbegin', `<p class="cached-note" id="cachedNote">آخر رسائل شفتها ${ago(gone)} · عم نحدّث…</p>`);
+  return true;
+}
 async function start() {
+  const cachedMe = store.get('ftt.me');
+  if (cachedMe) { state.me = cachedMe; renderFilters(); showCachedFeed(); }
   try {
     state.me = await api('/api/me');
+    store.set('ftt.me', state.me);
   } catch {
-    $('#feed').innerHTML = '<div class="empty"><h3>ما في اتصال</h3><p>تأكد من الإنترنت وافتح التطبيق مرة ثانية.</p><button class="ghost" id="reloadBtn">إعادة المحاولة</button></div>';
-    $('#reloadBtn').addEventListener('click', () => location.reload());
-    return;
+    if (!cachedMe) {
+      $('#feed').innerHTML = '<div class="empty"><h3>ما في اتصال</h3><p>تأكد من الإنترنت وافتح التطبيق مرة ثانية.</p><button class="ghost" id="reloadBtn">إعادة المحاولة</button></div>';
+      $('#reloadBtn').addEventListener('click', () => location.reload());
+      return;
+    }
+    const n = $('#cachedNote'); if (n) n.textContent = 'ما في نت هلأ · هاي آخر رسائل شفتها';
   }
   renderFilters();
-  locate();
+  if (!store.get('ftt.welcomed')) openWelcome(); else locate();
   registerPush();
   openFromLink();
   // keep the board fresh while the app is open

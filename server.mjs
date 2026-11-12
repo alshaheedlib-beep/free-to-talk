@@ -58,7 +58,12 @@ function currentUser(req, res) {
   const token = parseCookies(req)[COOKIE];
   const t = now();
   const dh = deviceHash(req);
-  let u = token && token.length >= 30 ? get('SELECT * FROM users WHERE token_hash = ?', sha256(token)) : null;
+  let u = null;
+  if (token && token.length >= 30) {
+    const th = sha256(token);
+    u = get('SELECT * FROM users WHERE token_hash = ?', th)
+      || get('SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?', th);
+  }
   if (!u) {
     const fresh = randomToken();
     const r = run('INSERT INTO users(token_hash, created_at, last_seen) VALUES (?, ?, ?)', sha256(fresh), t, t);
@@ -71,6 +76,17 @@ function currentUser(req, res) {
   }
   return u;
 }
+/* ---------- personal code: get your account back on another phone ---------- */
+// 12 characters from an alphabet without look-alikes (no 0/O, 1/I/L) ≈ 59 bits — and guesses are rate-limited.
+const CODE_ABC = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+function newCode() {
+  const bytes = crypto.randomBytes(12);
+  const raw = [...bytes].map((b) => CODE_ABC[b % CODE_ABC.length]).join('');
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`;
+}
+const normCode = (c) => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const codeHash = (c) => sha256(`hon-code:${normCode(c)}`);
+
 const isHttps = (req) => String(req.headers['x-forwarded-proto'] || '').startsWith('https');
 
 /* ---------- admin session ---------- */
@@ -156,7 +172,7 @@ async function api(req, res, url, me) {
   if (method === 'GET' && p === '/api/me') {
     const posts = get(`SELECT COUNT(*) AS n FROM posts WHERE user_id = ? AND expires_at > ? AND status = 'live'`, me.id, now()).n;
     return sendJson(res, 200, {
-      karma: me.karma, livePosts: posts, banned: !!me.banned,
+      karma: me.karma, livePosts: posts, banned: !!me.banned, hasCode: !!me.code_hash,
       categories: CATEGORIES, testMode: S.testMode === '1', testSpots: S.testMode === '1' ? TEST_SPOTS : [],
       push: pushEnabled(),
       ttlHours: int(S.postTtlHours, 24), ttlChoices: ttlChoices(S), maxPost: MAX_POST, maxReply: MAX_REPLY,
@@ -313,6 +329,33 @@ async function api(req, res, url, me) {
     const r = get(`SELECT * FROM replies WHERE id = ? AND status = 'live'`, int(m[1]));
     if (!r) return fail(res, 404, 'الرد اختفى');
     return report(res, 'reply', r.id, me, body.reason, S);
+  }
+
+  // Your code is shown once when it's made (the server keeps only a hash). renew=true makes a new one and kills the old.
+  if (method === 'POST' && p === '/api/account/code') {
+    const body = await readJson(req, 1000);
+    if (me.code_hash && !body.renew) return sendJson(res, 200, { hasCode: true });
+    let code;
+    for (let i = 0; i < 5; i++) { code = newCode(); if (!get('SELECT 1 AS x FROM users WHERE code_hash = ?', codeHash(code))) break; }
+    run('UPDATE users SET code_hash = ? WHERE id = ?', codeHash(code), me.id);
+    return sendJson(res, 200, { hasCode: true, code });
+  }
+
+  // On a new phone: type your code → this phone becomes you (your other phones stay logged in).
+  if (method === 'POST' && p === '/api/account/restore') {
+    const body = await readJson(req, 1000);
+    if (!rateLimit(`restore:${clientIp(req)}`, 8, 15 * 60_000) || !rateLimit(`restoreu:${me.id}`, 8, 15 * 60_000))
+      return fail(res, 429, 'محاولات كثيرة، جرّب بعد ربع ساعة');
+    if (normCode(body.code).length !== 12) return fail(res, 400, 'الرمز لازم يكون ١٢ حرف ورقم');
+    const owner = get('SELECT * FROM users WHERE code_hash = ?', codeHash(body.code));
+    if (!owner) return fail(res, 404, 'الرمز غلط، تأكد منه وجرّب مرة ثانية');
+    if (owner.id === me.id) return sendJson(res, 200, { ok: true, same: true });
+    const fresh = randomToken();
+    run('INSERT INTO sessions(token_hash, user_id, created_at) VALUES (?, ?, ?)', sha256(fresh), owner.id, now());
+    const dh = deviceHash(req);
+    if (dh) run('UPDATE users SET device_hash = ? WHERE id = ?', dh, owner.id);
+    res.setHeader('Set-Cookie', cookie(COOKIE, fresh, { maxAge: 400 * 86400, secure: isHttps(req) }));
+    return sendJson(res, 200, { ok: true });
   }
 
   if (method === 'POST' && p === '/api/push/register') {

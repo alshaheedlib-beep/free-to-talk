@@ -65,6 +65,17 @@ public class MainActivity extends Activity {
     }
 
     private WebView web;
+    private View splashView;
+
+    private void revealPage() {
+        if (splashView == null) return;
+        final View sv = splashView;
+        splashView = null;
+        web.setAlpha(0f);
+        web.setVisibility(View.VISIBLE);
+        web.animate().alpha(1f).setDuration(220).start();
+        sv.animate().alpha(0f).setDuration(220).withEndAction(() -> ((android.view.ViewGroup) sv.getParent()).removeView(sv)).start();
+    }
     private String pendingGeoOrigin;
     private GeolocationPermissions.Callback pendingGeoCallback;
     private ValueCallback<Uri[]> pendingFiles;
@@ -86,7 +97,27 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         web.setBackgroundColor(Color.parseColor("#F5F2EA"));
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        setContentView(web);
+        // Navy splash with the logo + a small spinner stays until the page has painted — never a white screen.
+        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+        root.setBackgroundColor(Color.parseColor("#14213D"));
+        web.setVisibility(View.INVISIBLE);
+        root.addView(web, new android.widget.FrameLayout.LayoutParams(-1, -1));
+        float dp = getResources().getDisplayMetrics().density;
+        android.widget.LinearLayout splash = new android.widget.LinearLayout(this);
+        splash.setOrientation(android.widget.LinearLayout.VERTICAL);
+        splash.setGravity(android.view.Gravity.CENTER);
+        android.widget.ImageView logo = new android.widget.ImageView(this);
+        logo.setImageResource(R.mipmap.ic_launcher_foreground);
+        splash.addView(logo, new android.widget.LinearLayout.LayoutParams((int) (160 * dp), (int) (160 * dp)));
+        android.widget.ProgressBar spin = new android.widget.ProgressBar(this);
+        spin.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Color.parseColor("#FCA311")));
+        android.widget.LinearLayout.LayoutParams sp = new android.widget.LinearLayout.LayoutParams((int) (28 * dp), (int) (28 * dp));
+        sp.topMargin = (int) (8 * dp);
+        splash.addView(spin, sp);
+        root.addView(splash, new android.widget.FrameLayout.LayoutParams(-1, -1));
+        splashView = splash;
+        setContentView(root);
+        web.postDelayed(this::revealPage, 8000);   // never stay on the splash forever
         // Android 15+ draws apps under the status bar and keyboard; keep the page clear of both.
         if (Build.VERSION.SDK_INT >= 35) {
             web.setOnApplyWindowInsetsListener((v, insets) -> {
@@ -120,6 +151,9 @@ public class MainActivity extends Activity {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (ActivityNotFoundException ignored) { }
                 return true;
             }
+
+            @Override
+            public void onPageCommitVisible(WebView view, String url) { revealPage(); }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {

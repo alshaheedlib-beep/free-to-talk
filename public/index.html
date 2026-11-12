@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="هون">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&display=swap">
+<style>html,body{background:#f5f2ea;margin:0}@media (prefers-color-scheme:dark){html,body{background:#0d1426}}</style>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
@@ -165,7 +165,41 @@
     <div><b id="mePosts">٠</b><span>رسائلك الحية</span></div>
   </div>
   <p class="muted">النقاط بتطلع من تقييم الناس لرسائلك. ما حدا بيشوفها غيرك. لما تكثر التقييمات السلبية بتنحصر بـ رسالة وحدة باليوم.</p>
+  <div class="code-card">
+    <div class="code-top"><b>🔑 رمزك السري</b><small>بيرجعلك حسابك على أي جوال</small></div>
+    <div class="code-box"><span id="meCode" dir="ltr">••••-••••-••••</span><button class="copy-btn" data-copy="#meCode">نسخ</button></div>
+    <p class="hint" id="meCodeNote"></p>
+    <div class="code-actions">
+      <button class="link-btn" id="renewCode">اعمل رمز جديد</button>
+      <button class="link-btn" data-open-restore>عندي رمز من جوال ثاني</button>
+    </div>
+  </div>
   <button class="ghost" id="clearBlocks">إلغاء كل الحظر اللي عملته</button>
+</section>
+
+<section class="sheet" id="welcomeSheet" hidden aria-label="أهلاً فيك">
+  <div class="grab"></div>
+  <div class="welcome">
+    <div class="w-mark" role="img" aria-label="هون"></div>
+    <h2>أهلاً فيك بهون 👋</h2>
+    <p class="muted">هون ما في أسماء ولا أرقام جوالات، إنت مجهول. وهاد <b>رمزك السري</b> اللي بيعرّف إنك إنت:</p>
+    <div class="code-box big"><span id="welcomeCode" dir="ltr">••••-••••-••••</span><button class="copy-btn" data-copy="#welcomeCode">نسخ</button></div>
+    <p class="hint">📸 صوّره أو احفظه بالملاحظات. لو غيّرت جوالك أو حذفت التطبيق، بترجع حسابك ورسائلك فيه. ما حدا بيشوفه غيرك، ولا تعطيه لحدا.</p>
+    <button class="primary" id="welcomeDone">حفظته، يلا نبلّش</button>
+    <button class="ghost" data-open-restore>عندي رمز من جوال ثاني</button>
+  </div>
+</section>
+
+<section class="sheet" id="restoreSheet" hidden aria-label="رجّع حسابك">
+  <div class="grab"></div>
+  <div class="sheet-head">
+    <h2>رجّع حسابك</h2>
+    <button class="icon-btn close" data-close aria-label="إغلاق"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <p class="muted">اكتب الرمز اللي أخذته أول مرة فتحت فيها هون (١٢ حرف ورقم).</p>
+  <input id="restoreInput" class="code-input" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" dir="ltr" inputmode="text">
+  <p class="form-error" id="restoreErr" hidden></p>
+  <button class="primary" id="restoreGo">رجّع حسابي</button>
 </section>
 
 <div class="toast" id="toast" role="status" hidden></div>
