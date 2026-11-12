@@ -35,5 +35,6 @@ targets:
         NSLocationWhenInUseUsageDescription: "هون بيعرضلك الرسائل اللي حواليك، وبيزرع رسالتك بمكانك. ما بنحفظ موقعك الدقيق."
         NSCameraUsageDescription: "لتصوير صورة وترفقها برسالتك."
         NSPhotoLibraryUsageDescription: "لتختار صورة من الاستوديو وترفقها برسالتك."
+        NSPhotoLibraryAddUsageDescription: "لتحفظ صورة رمز حسابك (الباركود) بالصور."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false

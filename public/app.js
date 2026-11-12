@@ -61,6 +61,8 @@ function showSheet(id) {
 function closeSheet() {
   // closing the welcome in any way counts as "seen" — then find where you are
   if (openSheet === '#welcomeSheet') { store.set('ftt.welcomed', true); if (!state.loc) setTimeout(locate, 0); }
+  // leaving the restore screen without restoring: carry on as usual
+  if (openSheet === '#restoreSheet' && !state.loc) setTimeout(() => (store.get('ftt.welcomed') ? locate() : openWelcome()), 0);
   if (openSheet) $(openSheet).hidden = true;
   openSheet = null; $('#scrim').hidden = true;
 }
@@ -653,6 +655,108 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-open-restore]')) { $('#restoreErr').hidden = true; $('#restoreInput').value = ''; showSheet('#restoreSheet'); setTimeout(() => $('#restoreInput').focus(), 250); }
 });
 
+/* ---------- the code as a QR image: save it once, scan it on any new phone ---------- */
+window.honToast = (m) => toast(m);
+const restoreLink = (code) => `${location.origin}/#r=${code}`;
+async function makeCodeImage(code) {
+  const { default: qrcode } = await import('/vendor/qrcode.mjs');
+  const q = qrcode(0, 'M'); q.addData(restoreLink(code)); q.make();
+  const F = '"Readex Pro", system-ui, sans-serif', MONO = 'ui-monospace, Menlo, "Droid Sans Mono", monospace';
+  await document.fonts.load(`600 52px ${F}`).catch(() => {});
+  const W = 1080, H = 1560, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d'); x.direction = 'rtl'; x.textAlign = 'center';
+  x.fillStyle = '#14213d'; x.fillRect(0, 0, W, H);
+  try { const logo = await loadImg('/wordmark-light.svg'); x.drawImage(logo, W / 2 - 140, 90, 280, 144); } catch {}
+  x.fillStyle = '#f5f2ea'; x.font = `600 54px ${F}`; x.fillText('🔑 رمز حسابي بهون', W / 2, 330);
+  // QR on a white card
+  const box = 640, bx = (W - box) / 2, by = 390;
+  x.fillStyle = '#ffffff'; roundRect(x, bx, by, box, box, 40); x.fill();
+  const n = q.getModuleCount(), quiet = 44, cell = Math.floor((box - quiet * 2) / n), off = bx + (box - cell * n) / 2, offY = by + (box - cell * n) / 2;
+  x.fillStyle = '#14213d';
+  for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) if (q.isDark(r, col)) x.fillRect(off + col * cell, offY + r * cell, cell, cell);
+  // the code in letters too
+  x.direction = 'ltr'; x.fillStyle = '#fca311'; x.font = `700 76px ${MONO}`; x.fillText(code, W / 2, by + box + 120);
+  x.direction = 'rtl'; x.fillStyle = 'rgba(245,242,234,.88)'; x.font = `400 36px ${F}`;
+  ['على الجوال الجديد: وجّه كاميرا الجوال على الباركود،', 'أو افتح هون ← «عندي رمز» ← اختار هالصورة'].forEach((l, i) => x.fillText(l, W / 2, by + box + 220 + i * 56));
+  const wy = H - 170; x.fillStyle = 'rgba(226,83,29,.18)'; roundRect(x, 110, wy, W - 220, 92, 46); x.fill();
+  x.fillStyle = '#ff9a73'; x.font = `600 34px ${F}`; x.fillText('⚠️ لا تنشرها لحدا: اللي معه الصورة بيدخل على حسابك', W / 2, wy + 58);
+  return c;
+}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-save-qr]'); if (!b) return;
+  const code = store.get('ftt.code');
+  if (!code) return toast('الرمز مش محفوظ على هالجوال. اعمل رمز جديد أول');
+  b.disabled = true;
+  try {
+    const c = await makeCodeImage(code);
+    const data = c.toDataURL('image/png'), name = `hon-${code}.png`;
+    const app = window.HonNative?.platform?.();
+    if (app === 'android' && window.HonNative.saveImage) { if (window.HonNative.saveImage(data.split(',')[1], name)) toast('✅ انحفظت بالاستوديو، بمجلد Hon'); return; }
+    if (app === 'ios' && window.HonNative.saveImage) { window.HonNative.saveImage(data.split(',')[1]); return; }   // the app answers with its own message
+    const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file] }).catch(() => {}); return; }
+    const a = document.createElement('a'); a.href = data; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    toast('✅ نزلت الصورة');
+  } catch { toast('ما قدرنا نعمل الصورة، صوّر الشاشة بدلها'); }
+  finally { b.disabled = false; }
+});
+
+// Read the code from a photo/screenshot of the QR.
+let jsQRReady = null;
+const loadJsQR = () => jsQRReady || (jsQRReady = new Promise((ok, no) => {
+  const sc = document.createElement('script'); sc.src = '/vendor/jsQR.js'; sc.onload = () => ok(window.jsQR); sc.onerror = no; document.head.appendChild(sc);
+}));
+async function readQr(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImg(url);
+    for (const max of [1400, 800, 2200]) {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, c.width, c.height);
+      if ('BarcodeDetector' in window) {
+        try { const r = await new window.BarcodeDetector({ formats: ['qr_code'] }).detect(c); if (r[0]?.rawValue) return r[0].rawValue; } catch {}
+      }
+      const jsQR = await loadJsQR();
+      const r = jsQR(x.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'attemptBoth' });
+      if (r?.data) return r.data;
+    }
+    return null;
+  } finally { URL.revokeObjectURL(url); }
+}
+const codeFrom = (text) => {
+  const m = String(text || '').toUpperCase().match(/([A-Z0-9]{4})-?([A-Z0-9]{4})-?([A-Z0-9]{4})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+};
+$('#pickQr').addEventListener('click', () => $('#qrFile').click());
+$('#qrFile').addEventListener('change', async () => {
+  const f = $('#qrFile').files[0]; $('#qrFile').value = ''; if (!f) return;
+  const err = $('#restoreErr'); err.hidden = true;
+  $('#pickQr b').textContent = 'عم نقرأ الباركود…';
+  try {
+    const code = codeFrom(await readQr(f));
+    if (!code) { err.textContent = 'ما لقينا باركود واضح بالصورة. جرّب صورة ثانية أو اكتب الرمز.'; err.hidden = false; return; }
+    $('#restoreInput').value = code;
+    $('#restoreGo').click();
+  } catch { err.textContent = 'ما قدرنا نقرأ الصورة.'; err.hidden = false; }
+  finally { $('#pickQr b').textContent = 'اختار صورة الباركود'; }
+});
+// Opened from a scanned QR (…/#r=CODE): fill the code in and ask to confirm.
+function readHashCode() {
+  const m = location.hash.match(/^#r=([A-Za-z0-9-]{12,14})$/);
+  if (!m) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+  return codeFrom(m[1]);
+}
+function openRestoreWith(code) {
+  if (store.get('ftt.code') === code) { toast('✅ هاد حسابك أصلاً'); return false; }
+  $('#restoreErr').hidden = true; $('#restoreInput').value = code;
+  $('#restoreHint').textContent = '📷 قرأنا الرمز من الباركود. اضغط «رجّع حسابي» لتكمّل.';
+  showSheet('#restoreSheet');
+  return true;
+}
+
 // First time on this phone: say hello and hand over the code.
 async function openWelcome() {
   showSheet('#welcomeSheet');
@@ -713,7 +817,9 @@ async function start() {
     const n = $('#cachedNote'); if (n) n.textContent = 'ما في نت هلأ · هاي آخر رسائل شفتها';
   }
   renderFilters();
-  if (!store.get('ftt.welcomed')) openWelcome(); else locate();
+  const scanned = readHashCode();
+  if (scanned && openRestoreWith(scanned)) { /* restore sheet is open */ }
+  else if (!store.get('ftt.welcomed')) openWelcome(); else locate();
   registerPush();
   openFromLink();
   // keep the board fresh while the app is open

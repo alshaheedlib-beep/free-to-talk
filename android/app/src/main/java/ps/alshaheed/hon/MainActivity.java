@@ -217,6 +217,28 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String platform() { return "android"; }
 
+        /** Save a PNG (base64) into the phone's gallery under Pictures/Hon. Returns false if it fell back to sharing. */
+        @JavascriptInterface
+        public boolean saveImage(String base64, String name) {
+            byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            if (Build.VERSION.SDK_INT >= 29) {
+                try {
+                    android.content.ContentValues v = new android.content.ContentValues();
+                    v.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+                    v.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+                    v.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Hon");
+                    Uri uri = getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                    if (uri != null) {
+                        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) { out.write(bytes); }
+                        return true;
+                    }
+                } catch (Exception ignored) { }
+            }
+            // older Android: hand it to the share sheet (Save to gallery / Drive / WhatsApp to yourself)
+            shareImage(base64, "رمز حسابي بهون");
+            return false;
+        }
+
         /** Is the phone's Location (GPS) switch on? */
         @JavascriptInterface
         public boolean locationOn() {

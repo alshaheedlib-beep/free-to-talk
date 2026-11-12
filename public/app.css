@@ -268,3 +268,14 @@ textarea { width: 100%; border: 0; outline: 0; resize: none; background: transpa
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 1.35rem; letter-spacing: .1em; text-transform: uppercase; outline: 0; margin-bottom: 12px; }
 .code-input:focus { border-color: var(--ink-2); }
 .cached-note { text-align: center; font-size: .78rem; color: var(--muted); margin: -2px 0 2px; }
+
+/* ---------- code as QR ---------- */
+.qr-save { margin-top: 10px; }
+.qr-pick { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 16px; text-align: start;
+  background: color-mix(in srgb, var(--accent) 12%, var(--card)); border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+.qr-pick span:last-child { display: grid; line-height: 1.45; }
+.qr-pick small { color: var(--muted); font-size: .8rem; }
+.qr-pick-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--ink); color: var(--accent); flex: none; }
+.qr-pick-ico svg { width: 26px; height: 26px; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .8rem; margin: 14px 0 10px; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }

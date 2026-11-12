@@ -36,7 +36,8 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         // Same bridge as Android: window.HonNative.deviceId() / platform()
         let bridge = """
         window.HonNative = { deviceId: function () { return '\(Self.deviceHash())'; }, platform: function () { return 'ios'; },
-          shareImage: function (data, text) { window.webkit.messageHandlers.honShare.postMessage({ data: data, text: text }); } };
+          shareImage: function (data, text) { window.webkit.messageHandlers.honShare.postMessage({ data: data, text: text }); },
+          saveImage: function (data) { window.webkit.messageHandlers.honSave.postMessage(data); return true; } };
         """
         config.userContentController.addUserScript(WKUserScript(source: bridge, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         // The page's navigator.geolocation is answered by the app itself, so iPhone asks for location
@@ -60,6 +61,7 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
         config.userContentController.addUserScript(WKUserScript(source: geo, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.userContentController.add(self, name: "honGeo")
         config.userContentController.add(self, name: "honShare")
+        config.userContentController.add(self, name: "honSave")
         config.applicationNameForUserAgent = "HonApp/iOS"
 
         web = WKWebView(frame: .zero, configuration: config)
@@ -118,6 +120,10 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             present(sheet, animated: true)
             return
         }
+        if message.name == "honSave", let b64 = message.body as? String, let data = Data(base64Encoded: b64), let image = UIImage(data: data) {
+            UIImageWriteToSavedPhotosAlbum(image, self, #selector(savedToPhotos(_:didFinishSavingWithError:contextInfo:)), nil)
+            return
+        }
         guard message.name == "honGeo", let id = message.body as? Int else { return }
         geoWaiting.append(id)
         switch location.authorizationStatus {
@@ -143,6 +149,11 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         let denied = (error as? CLError)?.code == .denied
         answerGeo(nil, code: denied ? 1 : 2, message: error.localizedDescription)
+    }
+
+    @objc private func savedToPhotos(_ image: UIImage, didFinishSavingWithError error: Error?, contextInfo: UnsafeRawPointer) {
+        let msg = error == nil ? "✅ انحفظت بالصور" : "ما قدرنا نحفظها. اسمح لهون بالصور من الإعدادات"
+        web.evaluateJavaScript("window.honToast && window.honToast('\(msg)')", completionHandler: nil)
     }
 
     private func answerGeo(_ loc: CLLocation?, code: Int, message: String) {
